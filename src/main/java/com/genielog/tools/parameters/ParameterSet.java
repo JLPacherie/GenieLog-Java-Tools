@@ -15,7 +15,7 @@ import org.apache.logging.log4j.Logger;
 public class ParameterSet implements Serializable {
 
 	private static final long serialVersionUID = -2713284450963955130L;
-	protected transient Logger _logger = LogManager.getLogger(ParameterSet.class);
+	protected transient Logger _logger = null;
 	protected transient List<ParameterSet> _parents = new ArrayList<>();
 	protected transient Object owner = null;
 	protected transient List<BiConsumer<String, String>> _changeHandlers = new ArrayList<>();
@@ -27,6 +27,7 @@ public class ParameterSet implements Serializable {
 	//
 
 	public ParameterSet() {
+		_logger = LogManager.getLogger(this.getClass());
 	}
 
 	public ParameterSet(Map<String, String> params) {

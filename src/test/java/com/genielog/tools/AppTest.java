@@ -1,4 +1,4 @@
-package org.genielog.tools;
+package com.genielog.tools;
 
 import org.junit.jupiter.api.Test;
 
