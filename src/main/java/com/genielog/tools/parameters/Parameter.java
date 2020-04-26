@@ -224,6 +224,7 @@ public class Parameter implements Serializable {
 		return false;
 	}
 
+	/** Returns a list of parameters defined in parents and hidden by this parameter. */
 	public Stream<Parameter> hides() {
 		if ((getSet() != null)) {
 			return getSet().getParents() //
@@ -232,6 +233,7 @@ public class Parameter implements Serializable {
 		}
 		return Stream.empty();
 	}
+	
 	// ************************************************************************************
 
 	/**
