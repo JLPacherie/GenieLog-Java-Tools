@@ -322,8 +322,11 @@ public class Parameter implements Serializable {
 	// --------------------------------------------------------------------------
 
 	public String toString() {
-		return ((getSet() != null) ? getSet().getOwner().getClass().getSimpleName() : "") + "[" + getMode() + "] '"
-				+ getName() + "' = '" + getValue() + "'";
+		String owner = "";
+		if ((getSet() != null) && (getSet().getOwner() != null)) {
+			owner = getSet().getOwner().getClass().getSimpleName() + " ";
+		}
+		return owner + "[" + getMode() + "] '" + getName() + "' = '" + getValue() + "'";
 	}
 
 }
