@@ -4,6 +4,7 @@ module com.genielog.tools {
 	exports com.genielog.tools;
 
 	requires com.fasterxml.jackson.core;
-	requires com.fasterxml.jackson.databind;
-	requires log4j.api;
+	requires transitive com.fasterxml.jackson.databind;
+	requires org.apache.logging.log4j;
+	requires org.apache.logging.log4j.core;
 }
