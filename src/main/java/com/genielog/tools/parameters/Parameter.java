@@ -98,6 +98,11 @@ public class Parameter implements Serializable {
 	}
 
 	public boolean isAuthorizedValue(String value) {
+
+		if (READ_ONLY.equals(mode)) {
+			_logger.error("Attempting to redefine a red only parameter {} with '{}'",this,value);
+			return false;
+		}
 		//
 		// If at least one Validator matches, then it's fine.
 		//
