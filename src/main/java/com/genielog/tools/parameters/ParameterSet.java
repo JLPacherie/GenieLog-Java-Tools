@@ -187,6 +187,9 @@ public class ParameterSet implements Serializable {
 	 */
 	public Parameter add(String name, String value, String mode) {
 		Parameter p = search(name, false);
+		if (p != null) {
+			//throw new IllegalArgumentException("Can't create twice the same parameter, check param name colision for " + name);
+		}
 		if (p == null) {
 			p = new Parameter(name, value, mode);
 			p.setSet(this);
