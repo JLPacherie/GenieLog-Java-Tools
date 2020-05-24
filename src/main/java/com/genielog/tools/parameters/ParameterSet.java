@@ -2,6 +2,7 @@ package com.genielog.tools.parameters;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -113,9 +114,9 @@ public class ParameterSet implements Serializable {
 	}
 
 	public Stream<String> names(boolean incParents) {
-		return parameters(incParents).map( Parameter::getName);
+		return parameters(incParents).map(Parameter::getName);
 	}
-	
+
 	//
 	// ******************************************************************************************************************
 	//
@@ -137,7 +138,7 @@ public class ParameterSet implements Serializable {
 						if (synonym.isWritable()) {
 							return false;
 						} else {
-							_logger.debug("name '{}' is locked by {}",name,synonym.getSet().getOwner());
+							_logger.debug("name '{}' is locked by {}", name, synonym.getSet().getOwner());
 							return true;
 						}
 					}
@@ -158,16 +159,20 @@ public class ParameterSet implements Serializable {
 		Parameter p = search(name, false);
 		if (p != null) {
 			if (p.getMode().equals(Parameter.READ_WRITE)) {
-				applyListeners(name, value);
-				p.setValue(value);
+				if ((p.getValue() != null) && (!p.getValue().equals(value))) {
+					applyListeners(name, value);
+					p.setValue(value);
+				}
 				return true;
 			} else {
-				_logger.error("Attempt to write READ ONLY parameter: {}",p.getName());
+				_logger.error("Attempt to write READ ONLY parameter: {}", p.getName());
+				throw new IllegalArgumentException("Can't write read only parameter " + name);
 			}
 		} else {
-			_logger.error("Attempt to write undefined parameter: {}",name);
+			_logger.error("Attempt to write undefined parameter: {}", name);
+			throw new IllegalArgumentException("Can't write missing parameter " + name);
 		}
-		return false;
+		// return false;
 	}
 
 	//
@@ -188,19 +193,20 @@ public class ParameterSet implements Serializable {
 	public Parameter add(String name, String value, String mode) {
 		Parameter p = search(name, false);
 		if (p != null) {
-			//throw new IllegalArgumentException("Can't create twice the same parameter, check param name colision for " + name);
-		}
-		if (p == null) {
+			if (mode.equals(p.getMode()) && p.isWritable()) {
+				p.setValue(value);
+				applyListeners(name, value);
+			} else {
+				_logger.debug("Can't add twice the same parameter {}, with different mode {}.", name, mode);
+				p = null;
+				throw new IllegalArgumentException(
+						"Can't create twice the same parameter, check param name colision for " + name);
+			}
+		} else {
 			p = new Parameter(name, value, mode);
 			p.setSet(this);
 			_allParams.put(name, p);
-		} else {
-			if (p.isWritable()) {
-				p.setValue(value);
-			} else {
-				_logger.debug("Parameter with name {}, already exists and is protected.",name);
-				p = null;
-			}
+			applyListeners(name, value);
 		}
 		return p;
 	}
@@ -256,7 +262,7 @@ public class ParameterSet implements Serializable {
 	public void clear() {
 		_allParams.clear();
 	}
-	
+
 	//
 	// ******************************************************************************************************************
 	//
@@ -357,7 +363,7 @@ public class ParameterSet implements Serializable {
 
 	// ******************************************************************************************************************
 
-	protected Parameter search(String name, boolean incParent) {
+	public Parameter search(String name, boolean incParent) {
 
 		Parameter result = _allParams.get(name);
 
@@ -398,7 +404,7 @@ public class ParameterSet implements Serializable {
 					} else {
 						again = false;
 						index = paramNames.length + 1;
-						_logger.error("While processing '{}' auto reference detected for parameter '{}'.",srcStr,name);
+						_logger.error("While processing '{}' auto reference detected for parameter '{}'.", srcStr, name);
 					}
 				}
 				index++;
@@ -418,11 +424,18 @@ public class ParameterSet implements Serializable {
 		result.append(Integer.toString(getParamCount()));
 		result.append(" parameters ");
 		result.append(ownership);
-		for (Parameter param : _allParams.values()) {
-			result.append("\n");
-			result.append(param.getName());
-			result.append("=");
-			result.append(param.getValue());
+		List<String> names = List.copyOf(_allParams.keySet());
+		names.sort(Comparator.naturalOrder());
+		for (String name : names) {
+			Parameter param = _allParams.get(name);
+			if (param != null) {
+				result.append("\n");
+				result.append(param.getName());
+				result.append("=");
+				result.append(param.getValue());
+			} else {
+				result.append("Missing Parameter for entry " + name);
+			}
 		}
 
 		return result.toString();
