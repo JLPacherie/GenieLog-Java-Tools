@@ -24,7 +24,7 @@ public class Parameter implements Serializable {
 	 */
 	private transient Map<String, Predicate<String>> validators = new HashMap<>();
 
-	private transient List<String> _authorizedValues = new ArrayList<>();
+	private List<String> _authorizedValues = new ArrayList<>();
 
 	private String name;
 	private String mode;
@@ -100,7 +100,7 @@ public class Parameter implements Serializable {
 	public boolean isAuthorizedValue(String value) {
 
 		if (READ_ONLY.equals(mode)) {
-			_logger.error("Attempting to redefine a red only parameter {} with '{}'",this,value);
+			_logger.error("Attempting to redefine a red only parameter {} with '{}'", this, value);
 			return false;
 		}
 		//
@@ -147,12 +147,12 @@ public class Parameter implements Serializable {
 
 	public Parameter addAutorizedValues(Set<String> values) {
 		for (String v : values) {
-			addAutorizedValue(v);
+			addAuthorizedValue(v);
 		}
 		return this;
 	}
 
-	public Parameter addAutorizedValue(String v) {
+	public Parameter addAuthorizedValue(String v) {
 		if (!_authorizedValues.contains(v)) {
 
 			if (validators.isEmpty()) {
@@ -238,7 +238,7 @@ public class Parameter implements Serializable {
 		}
 		return Stream.empty();
 	}
-	
+
 	// ************************************************************************************
 
 	/**
@@ -309,13 +309,11 @@ public class Parameter implements Serializable {
 
 	/** Rename this parameter only if the new name is not already associated to a parameter in the same set. */
 	public void setName(String newName) {
-		if ((newName != null) && !newName.equals(name)) {
-			if ((getSet() == null) || !getSet().isLocked(newName)) {
-				this.name = newName;
-			} else {
-				_logger.error("Unable to set the parameter name '{}' in the set {}\n", name, _set);
-				hides().forEach(p -> _logger.error("Parameter is hiden from {}\n", p.getSet()));
+		if ((newName != null) && !newName.equals(name) && isWritable()) {
+			if (getSet() != null) {
+				getSet().rename(getName(), newName);
 			}
+			this.name = newName;
 		}
 	}
 
@@ -329,7 +327,7 @@ public class Parameter implements Serializable {
 	public String toString() {
 		String owner = "";
 		if ((getSet() != null) && (getSet().getOwner() != null)) {
-			owner = getSet().getOwner().getClass().getSimpleName() + " ";
+			owner = "(" + getSet().getOwner().getClass().getSimpleName() + ") ";
 		}
 		return owner + "[" + getMode() + "] '" + getName() + "' = '" + getValue() + "'";
 	}

@@ -2,7 +2,6 @@ package com.genielog.tools.parameters;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,7 +113,7 @@ public class ParameterSet implements Serializable {
 	}
 
 	public Stream<String> names(boolean incParents) {
-		return parameters(incParents).map(Parameter::getName);
+		return parameters(incParents).map(Parameter::getName).distinct().sorted();
 	}
 
 	//
@@ -227,11 +226,30 @@ public class ParameterSet implements Serializable {
 	//
 
 	public Parameter add(Parameter p) {
-		Parameter copy = new Parameter(p);
-		_allParams.put(p.getName(), copy);
-		return copy;
+		if ((p.getSet() != null) && (p.getSet() != this)) {
+			throw new IllegalArgumentException("Can't add the same parameter to 2 sets.");
+		}
+		p.setSet(this);
+		_allParams.put(p.getName(), p);
+		return p;
 	}
 
+	
+	public void rename(String prevName, String newName) {
+		
+		Parameter p = _allParams.get(prevName);
+		
+		if (p == null) {
+			throw new IllegalArgumentException("The parameter to rename is not in this set?");
+		}
+		
+		if (isLocked(newName)) {
+			throw new IllegalArgumentException("The new name for the parameter is already defined or locked in this set.");
+		}
+		
+		_allParams.remove(p.getName());
+		_allParams.put(newName,p);
+	}
 	//
 	// ******************************************************************************************************************
 	//
@@ -253,8 +271,7 @@ public class ParameterSet implements Serializable {
 
 	public boolean remove(Parameter p) {
 		if (p != null) {
-			_allParams.remove(p.getName());
-			return true;
+			return _allParams.remove(p.getName()) == p;
 		}
 		return false;
 	}
@@ -424,19 +441,27 @@ public class ParameterSet implements Serializable {
 		result.append(Integer.toString(getParamCount()));
 		result.append(" parameters ");
 		result.append(ownership);
-		List<String> names = List.copyOf(_allParams.keySet());
-		names.sort(Comparator.naturalOrder());
-		for (String name : names) {
-			Parameter param = _allParams.get(name);
+		names(true).forEach(name -> {
+			Parameter param = search(name,true);
 			if (param != null) {
 				result.append("\n");
+				ParameterSet set = param.getSet();
+				if (set == null) {
+					result.append("\nMissing Parameter's owner for entry '" + name + "'");
+				} else 	if (set != this) {
+					result.append("[" + set.getOwner() +"] ");
+				}
 				result.append(param.getName());
 				result.append("=");
-				result.append(param.getValue());
+				String value = param.getValue();
+				if ((value != null) && (value.length() > 20)) {
+					value = value.substring(0,20) + "...";
+				}
+				result.append(value);
 			} else {
-				result.append("Missing Parameter for entry " + name);
+				result.append("\nMissing Parameter for entry '" + name + "'");
 			}
-		}
+		});
 
 		return result.toString();
 	}
@@ -459,4 +484,26 @@ public class ParameterSet implements Serializable {
 		}
 	}
 
+	public boolean isValid() {
+		boolean result = true;
+		List<Map.Entry<String,Parameter>> toFix = new ArrayList<>();
+		for (Map.Entry<String,Parameter> entry : _allParams.entrySet()) {
+			String id = entry.getKey();
+			String name = entry.getValue().getName();
+			if (!id.equals(name)) {
+				toFix.add(entry);
+			}
+		}
+		
+		for (Map.Entry<String,Parameter> entry : toFix) {
+			if (_allParams.get(entry.getValue().getName()) == null) {
+				_allParams.remove(entry.getKey());
+				_allParams.put(entry.getValue().getName(),entry.getValue());
+			} else {
+				_logger.error("There's multiple parameter with the same name : {}", entry);
+				result = false;
+			}
+		}
+		return result;
+	}
 }
