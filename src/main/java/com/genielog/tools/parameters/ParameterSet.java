@@ -1,58 +1,28 @@
 package com.genielog.tools.parameters;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-public class ParameterSet implements Serializable {
+public class ParameterSet extends AParameterSet<String> {
 
 	private static final long serialVersionUID = -2713284450963955130L;
-	protected transient Logger _logger = null;
-	protected transient List<ParameterSet> _parents = new ArrayList<>();
-	protected transient Object owner = null;
-	protected transient List<BiConsumer<String, String>> _changeHandlers = new ArrayList<>();
-
-	private HashMap<String, Parameter> _allParams = new HashMap<>();
 
 	//
 	// ******************************************************************************************************************
 	//
 
 	public ParameterSet() {
-		_logger = LogManager.getLogger(this.getClass());
+		super();
 	}
 
 	public ParameterSet(Map<String, String> params) {
 		for (Map.Entry<String, String> item : params.entrySet()) {
-			add(item.getKey(), item.getValue(), Parameter.READ_ONLY);
+			add(item.getKey(), item.getValue(), AParameter.READ_ONLY);
 		}
 	}
 
 	//
 	// ******************************************************************************************************************
 	//
-
-	public Map<String, String> mapExport() {
-		HashMap<String, String> result = new HashMap<>();
-		for (Parameter param : _allParams.values()) {
-			result.put(param.getName(), param.getValue());
-		}
-		return result;
-	}
-
-	public void mapImport(Map<String, String> map) {
-		for (Map.Entry<String, String> entry : map.entrySet()) {
-			add(entry.getKey(), entry.getValue(), Parameter.READ_WRITE);
-		}
-	}
 
 	public static ParameterSet makeParameterSetFromEnv() {
 		ParameterSet result = new ParameterSet(System.getenv());
@@ -60,242 +30,22 @@ public class ParameterSet implements Serializable {
 		return result;
 	}
 
-	//
-	// ******************************************************************************************************************
-	//
-	public Stream<Parameter> parameters(boolean incParents) {
-		List<Parameter> result = new ArrayList<>();
-		result.addAll(_allParams.values());
-		if (!_parents.isEmpty() && incParents) {
-
-			_parents.stream()//
-					.flatMap(parent -> parent.parameters(true)).forEach(parentParameter -> {
-						//
-						// Search if the parent parameter can be overwritten
-						//
-						Parameter finalParameter = result.stream()//
-								.filter(p -> p.getName().equals(parentParameter.getName()))//
-								.findFirst()//
-								.orElse(null);
-
-						if (finalParameter == null) {
-							// No problem, the parent parameter is unknown
-							result.add(parentParameter);
-						} else {
-							if (parentParameter.isWritable()) {
-								// The parent parameter can be redefine, just ignore it
-								// _logger.warn("In Set for " + this.getOwner() + " the unlocked parameter " + parentParameter
-								// + " is ignored and redefined by " + finalParameter);
-							} else {
-								if (finalParameter.isWritable()) {
-									// _logger.warn("In Set for " + this.getOwner() + " the unlocked parameter " + parentParameter
-									// + " is replaced by " + finalParameter);
-									result.remove(finalParameter);
-									result.add(parentParameter);
-								} else {
-									String finalValue = finalParameter.getValue();
-									String parentValue = parentParameter.getValue();
-									if (finalValue.equals(parentValue)) {
-										// _logger.warn("In Set for " + this.getOwner() + " the locked parameters " + parentParameter
-										// + " and " + finalParameter + " conflict but have same value");
-									} else {
-										// Ouch, there a parameter in the children that overwrite a locked parent parameter
-										_logger.error("In Set for {} the locked parameter {} is redefined by {}", getOwner(),
-												parentParameter, finalParameter);
-									}
-								}
-							}
-						}
-
-					});
-		}
-		return result.stream();
+	protected AParameter<String> makeParameter() {
+		return new StrParameter();
 	}
-
-	public Stream<String> names(boolean incParents) {
-		return parameters(incParents).map(Parameter::getName).distinct().sorted();
-	}
-
-	//
-	// ******************************************************************************************************************
-	//
-
-	public Parameter getParameterByName(String name, boolean incParent) {
-		return parameters(incParent).filter(p -> p.getName().equals(name)).findFirst().orElse(null);
-	}
-
-	public boolean hasName(String name) {
-		return getParameterByName(name, false) != null;
-	}
-
-	/** Returns true if the given name is one of a READ ONLY parameter in the parents. */
-	public boolean isLockedByParents(String name) {
-		return getParents() // Look into each ParameterSet in the parents
-				.map(parent -> parent.getParameterByName(name, false)) // For each Parent, search for a synonym
-				.anyMatch(synonym -> {
-					if (synonym != null) {
-						if (synonym.isWritable()) {
-							return false;
-						} else {
-							_logger.debug("name '{}' is locked by {}", name, synonym.getSet().getOwner());
-							return true;
-						}
-					}
-					return false;
-				});
-	}
-
-	/** Returns true if the given name is already in use or locked by parents. */
-	public boolean isLocked(String name) {
-		return hasName(name) || isLockedByParents(name);
-	}
-	//
-	// ******************************************************************************************************************
-	//
-
-	/** Change the value of an existing read/write parameter. Returns true if set occurred. */
-	public boolean set(String name, String value) {
-		Parameter p = search(name, false);
-		if (p != null) {
-			if (p.getMode().equals(Parameter.READ_WRITE)) {
-				if ((p.getValue() != null) && (!p.getValue().equals(value))) {
-					applyListeners(name, value);
-					p.setValue(value);
-				}
-				return true;
-			} else {
-				_logger.error("Attempt to write READ ONLY parameter: {}", p.getName());
-				throw new IllegalArgumentException("Can't write read only parameter " + name);
-			}
-		} else {
-			_logger.error("Attempt to write undefined parameter: {}", name);
-			throw new IllegalArgumentException("Can't write missing parameter " + name);
-		}
-		// return false;
-	}
-
-	//
-	// ******************************************************************************************************************
-	//
-
-	/**
-	 * Add or update a parameter with a new value. Returns true if change occurred.
-	 * 
-	 * @param name
-	 *          The name of the parameter to add/update
-	 * @param value
-	 *          The value of the parameter
-	 * @param mode
-	 *          Is it a read/write or read only parameter.
-	 * @return True if the parameter is added or updated. False if a parameter already exists and is read only
-	 */
-	public Parameter add(String name, String value, String mode) {
-		Parameter p = search(name, false);
-		if (p != null) {
-			if (mode.equals(p.getMode()) && p.isWritable()) {
-				p.setValue(value);
-				applyListeners(name, value);
-			} else {
-				_logger.debug("Can't add twice the same parameter {}, with different mode {}.", name, mode);
-				p = null;
-				throw new IllegalArgumentException(
-						"Can't create twice the same parameter, check param name colision for " + name);
-			}
-		} else {
-			p = new Parameter(name, value, mode);
-			p.setSet(this);
-			_allParams.put(name, p);
-			applyListeners(name, value);
-		}
-		return p;
-	}
-
-	//
-	// ******************************************************************************************************************
-	//
-
-	public void add(ParameterSet other) {
-		if (other != null) {
-			other.parameters(false).forEach(p -> add(p));
-			_parents.addAll(other._parents);
-		}
-	}
-
-	//
-	// ******************************************************************************************************************
-	//
-
-	public Parameter add(Parameter p) {
-		if ((p.getSet() != null) && (p.getSet() != this)) {
-			throw new IllegalArgumentException("Can't add the same parameter to 2 sets.");
-		}
-		p.setSet(this);
-		_allParams.put(p.getName(), p);
-		return p;
-	}
-
 	
-	public void rename(String prevName, String newName) {
-		
-		Parameter p = _allParams.get(prevName);
-		
-		if (p == null) {
-			throw new IllegalArgumentException("The parameter to rename is not in this set?");
-		}
-		
-		if (isLocked(newName)) {
-			throw new IllegalArgumentException("The new name for the parameter is already defined or locked in this set.");
-		}
-		
-		_allParams.remove(p.getName());
-		_allParams.put(newName,p);
-	}
-	//
-	// ******************************************************************************************************************
-	//
-
-	public int removeByPattern(String pattern) {
-		List<Parameter> matches = parameters(false)//
-				.filter(p -> p.getName().matches(pattern))//
-				.collect(Collectors.toList());
-
-		matches.forEach(p -> remove(p));
-
-		return matches.size();
-	}
-
-	public boolean remove(String name) {
-		Parameter p = search(name, false);
-		return remove(p);
-	}
-
-	public boolean remove(Parameter p) {
-		if (p != null) {
-			return _allParams.remove(p.getName()) == p;
-		}
-		return false;
-	}
-
-	public void clear() {
-		_allParams.clear();
-	}
-
 	//
 	// ******************************************************************************************************************
 	//
 
 	public String getDefinition(String name, String defaultValue) {
-		Parameter p = search(name, true);
+		AParameter<String> p = search(name, true);
 		return (p != null) ? p.getValue() : defaultValue;
 	}
 
 	//
 	// ******************************************************************************************************************
 	//
-
-	public String get(String name) {
-		return get(name, null, true);
-	}
 
 	public boolean getAsBoolean(String name, boolean defaultValue) {
 		String strValue = get(name, null);
@@ -316,84 +66,15 @@ public class ParameterSet implements Serializable {
 	// ******************************************************************************************************************
 	//
 
-	public String get(String name, String defaultValue) {
-		return get(name, defaultValue, true);
-	}
-
-	//
-	// ******************************************************************************************************************
-	//
-
+	@Override
 	public String get(String name, String defaultValue, boolean incParent) {
-		Parameter p = search(name, incParent);
-		String result = (p != null) ? p.getValue() : defaultValue;
+		String result = super.get(name,defaultValue,incParent);
 		if (result != null) {
 			result = process(result);
 		}
 		return result;
 	}
 
-	//
-	// ******************************************************************************************************************
-	//
-
-	public int getParamCount() {
-		return (int) parameters(true).count();
-	}
-
-	//
-	// ******************************************************************************************************************
-	//
-
-	public boolean has(String name) {
-		return search(name, true) != null;
-	}
-
-	public boolean hasParent(ParameterSet other) {
-		return _parents.stream().anyMatch(parent -> (parent == other) || (parent.hasParent(other)));
-	}
-
-	public Stream<ParameterSet> getParents() {
-		return _parents.stream();
-	}
-
-	public void addParent(ParameterSet other) {
-		if (hasParent(other)) {
-			_logger.error("Duplicate parent detected");
-			return;
-		}
-		if ((other == this) || other.hasParent(this)) {
-			_logger.error("Cyclic dependency detected in Parameter hierarchy");
-			return;
-		}
-
-		_parents.add(other);
-	}
-
-	public void setOwner(Object obj) {
-		owner = obj;
-	}
-
-	public Object getOwner() {
-		return owner;
-	}
-
-	// ******************************************************************************************************************
-
-	public Parameter search(String name, boolean incParent) {
-
-		Parameter result = _allParams.get(name);
-
-		int iParent = 0;
-		while ((result == null) && (incParent) && (iParent < _parents.size())) {
-			result = _parents.get(iParent).search(name, true);
-			if (result != null)
-				return result;
-			iParent++;
-		}
-
-		return result;
-	}
 
 	/**
 	 * Replaces the parameters names reference by their value in the given string.
@@ -407,7 +88,7 @@ public class ParameterSet implements Serializable {
 		boolean again = true;
 
 		while (again) {
-			String[] paramNames = Parameter.getReferencedParameterNames(result, "${", "}");
+			String[] paramNames = AParameter.getReferencedParameterNames(result, "${", "}");
 			again = false;
 			int index = 0;
 			while (index < paramNames.length) {
@@ -431,79 +112,4 @@ public class ParameterSet implements Serializable {
 		return result;
 	}
 
-	public String toString() {
-		String ownership = "";
-		if (getOwner() != null) {
-			ownership = "for " + getOwner();
-		}
-
-		StringBuilder result = new StringBuilder();
-		result.append(Integer.toString(getParamCount()));
-		result.append(" parameters ");
-		result.append(ownership);
-		names(true).forEach(name -> {
-			Parameter param = search(name,true);
-			if (param != null) {
-				result.append("\n");
-				ParameterSet set = param.getSet();
-				if (set == null) {
-					result.append("\nMissing Parameter's owner for entry '" + name + "'");
-				} else 	if (set != this) {
-					result.append("[" + set.getOwner() +"] ");
-				}
-				result.append(param.getName());
-				result.append("=");
-				String value = param.getValue();
-				if ((value != null) && (value.length() > 20)) {
-					value = value.substring(0,20) + "...";
-				}
-				result.append(value);
-			} else {
-				result.append("\nMissing Parameter for entry '" + name + "'");
-			}
-		});
-
-		return result.toString();
-	}
-
-	//
-	// ******************************************************************************************************************
-	//
-
-	public void resetChangeListeners() {
-		_changeHandlers.clear();
-	}
-
-	public void addChangeListener(BiConsumer<String, String> listener) {
-		_changeHandlers.add(listener);
-	}
-
-	protected void applyListeners(String paramName, String newValue) {
-		for (BiConsumer<String, String> handler : _changeHandlers) {
-			handler.accept(paramName, newValue);
-		}
-	}
-
-	public boolean isValid() {
-		boolean result = true;
-		List<Map.Entry<String,Parameter>> toFix = new ArrayList<>();
-		for (Map.Entry<String,Parameter> entry : _allParams.entrySet()) {
-			String id = entry.getKey();
-			String name = entry.getValue().getName();
-			if (!id.equals(name)) {
-				toFix.add(entry);
-			}
-		}
-		
-		for (Map.Entry<String,Parameter> entry : toFix) {
-			if (_allParams.get(entry.getValue().getName()) == null) {
-				_allParams.remove(entry.getKey());
-				_allParams.put(entry.getValue().getName(),entry.getValue());
-			} else {
-				_logger.error("There's multiple parameter with the same name : {}", entry);
-				result = false;
-			}
-		}
-		return result;
-	}
 }
