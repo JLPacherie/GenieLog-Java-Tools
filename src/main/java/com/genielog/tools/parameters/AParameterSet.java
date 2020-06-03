@@ -1,10 +1,10 @@
 package com.genielog.tools.parameters;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -160,7 +160,7 @@ public abstract class AParameterSet<T>  {
 		AParameter<T> p = search(name, false);
 		if (p != null) {
 			if (p.getMode().equals(Parameter.READ_WRITE)) {
-				if ((p.getValue() != null) && (!p.getValue().equals(value))) {
+				if ( ! Objects.equals(p.getValue(),value) ) {
 					applyListeners(p, value);
 					p.setValue(value);
 				}
