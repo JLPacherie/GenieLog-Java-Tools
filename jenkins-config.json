@@ -49,7 +49,7 @@
 
 		// Where are located the source code. Used by SCA for source code
 		"sources": [
-			"src"
+			"."
 		],
 
 		// Where are located the target artifacts. Used by SCA for Binary
