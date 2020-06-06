@@ -29,7 +29,7 @@ public abstract class AParameter<T> implements Serializable {
 	 */
 	private transient Map<String, Predicate<T>> validators = new HashMap<>();
 
-	private List<T> _authorizedValues;
+	private transient List<T> _authorizedValues;
 
 	private String name;
 	private String mode;

@@ -12,7 +12,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public abstract class AParameterSet<T>  {
+public abstract class AParameterSet<T> {
 
 	protected transient Logger _logger = null;
 	protected transient List<AParameterSet<T>> _parents = new ArrayList<>();
@@ -36,7 +36,7 @@ public abstract class AParameterSet<T>  {
 	}
 
 	protected abstract AParameter<T> makeParameter();
-	
+
 	//
 	// ******************************************************************************************************************
 	//
@@ -54,8 +54,6 @@ public abstract class AParameterSet<T>  {
 			add(entry.getKey(), entry.getValue(), Parameter.READ_WRITE);
 		}
 	}
-
-
 
 	//
 	// ******************************************************************************************************************
@@ -159,14 +157,14 @@ public abstract class AParameterSet<T>  {
 	public void set(String name, T value) {
 		AParameter<T> p = search(name, false);
 		if (p != null) {
-			if (p.getMode().equals(Parameter.READ_WRITE)) {
-				if ( ! Objects.equals(p.getValue(),value) ) {
+			if (!Objects.equals(p.getValue(), value)) {
+				if (p.getMode().equals(Parameter.READ_WRITE)) {
 					applyListeners(p, value);
 					p.setValue(value);
+				} else {
+					_logger.error("Attempt to write READ ONLY parameter: {}", p.getName());
+					throw new IllegalArgumentException("Can't write read only parameter " + name);
 				}
-			} else {
-				_logger.error("Attempt to write READ ONLY parameter: {}", p.getName());
-				throw new IllegalArgumentException("Can't write read only parameter " + name);
 			}
 		} else {
 			_logger.error("Attempt to write undefined parameter: {}", name);
@@ -284,7 +282,6 @@ public abstract class AParameterSet<T>  {
 		_allParams.clear();
 	}
 
-	
 	//
 	// ******************************************************************************************************************
 	//
@@ -293,7 +290,6 @@ public abstract class AParameterSet<T>  {
 	public T get(String name) {
 		return get(name, null, true);
 	}
-
 
 	public T get(String name, T defaultValue) {
 		return get(name, defaultValue, true);
@@ -366,7 +362,6 @@ public abstract class AParameterSet<T>  {
 		return result;
 	}
 
-
 	public String toString() {
 		String ownership = "";
 		if (getOwner() != null) {
@@ -416,13 +411,13 @@ public abstract class AParameterSet<T>  {
 
 	public boolean isValid() {
 		boolean result = true;
-		
+
 		boolean paramsAreValid = _allParams.values().stream().allMatch(p -> p.isValid());
 		if (!paramsAreValid) {
 			_logger.error("ParameterSet is not valid because some of its parameter are not.");
 			result = false;
 		}
-		
+
 		List<Map.Entry<String, AParameter<T>>> toFix = new ArrayList<>();
 		for (Map.Entry<String, AParameter<T>> entry : _allParams.entrySet()) {
 			String id = entry.getKey();
