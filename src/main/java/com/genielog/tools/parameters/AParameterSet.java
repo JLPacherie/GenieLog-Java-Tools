@@ -15,11 +15,11 @@ import org.apache.logging.log4j.Logger;
 public abstract class AParameterSet<T> {
 
 	protected transient Logger _logger = null;
-	protected transient List<AParameterSet<T>> _parents = new ArrayList<>();
+	protected transient List<AParameterSet<T>> _parents;
 	protected transient Object owner = null;
-	protected transient List<BiConsumer<AParameter<T>, T>> _changeHandlers = new ArrayList<>();
+	protected transient List<BiConsumer<AParameter<T>, T>> _changeHandlers;
 
-	private HashMap<String, AParameter<T>> _allParams = new HashMap<>();
+	private HashMap<String, AParameter<T>> _allParams;
 
 	//
 	// ******************************************************************************************************************
@@ -27,6 +27,9 @@ public abstract class AParameterSet<T> {
 
 	public AParameterSet() {
 		_logger = LogManager.getLogger(this.getClass());
+		_changeHandlers = new ArrayList<>();
+		_parents = new ArrayList<>();
+		_allParams = new HashMap<>();
 	}
 
 	public AParameterSet(Map<String, T> params) {
