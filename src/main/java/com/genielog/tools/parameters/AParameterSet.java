@@ -319,7 +319,7 @@ public abstract class AParameterSet<T> {
 		return search(name, true) != null;
 	}
 
-	public boolean hasParent(AParameterSet other) {
+	public boolean hasParent(AParameterSet<T> other) {
 		return _parents.stream().anyMatch(parent -> (parent == other) || (parent.hasParent(other)));
 	}
 
@@ -327,7 +327,7 @@ public abstract class AParameterSet<T> {
 		return _parents.stream();
 	}
 
-	public void addParent(AParameterSet other) {
+	public void addParent(AParameterSet<T> other) {
 		if (hasParent(other)) {
 			_logger.error("Duplicate parent detected");
 			return;

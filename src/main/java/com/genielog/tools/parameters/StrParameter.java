@@ -2,6 +2,7 @@ package com.genielog.tools.parameters;
 
 public class StrParameter extends Parameter {
 
+	private static final long serialVersionUID = 7445499436279696688L;
 	private String value;
 
 	//
