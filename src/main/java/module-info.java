@@ -1,5 +1,5 @@
 // The open qualifier is required to allow code inspection for JUnit.
-module com.genielog.tools {
+open module com.genielog.tools {
 	exports com.genielog.tools.json;
 	exports com.genielog.tools.parameters;
 	exports com.genielog.tools;
