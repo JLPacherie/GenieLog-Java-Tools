@@ -8,11 +8,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.Vector;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.genielog.tools.functional.SerializablePredicate;
 
 public abstract class AParameter<T> implements Serializable {
 
@@ -27,7 +28,7 @@ public abstract class AParameter<T> implements Serializable {
 	 * A list of predicate on submitted values for the parameter. To be able to set a value to a parameter at least one of
 	 * the validators must return true.
 	 */
-	private transient Map<String, Predicate<T>> validators = new HashMap<>();
+	private transient Map<String, SerializablePredicate<T>> validators = new HashMap<>();
 
 	private transient List<T> _authorizedValues;
 
@@ -63,7 +64,9 @@ public abstract class AParameter<T> implements Serializable {
 			_logger.warn("Parameter {} has no name", toString());
 			result = false;
 		}
-		if (!isAuthorizedValue(getValue())) {
+		// The test hasValidations is used to avoid calculation of getValue which for
+		// BridgedParameter can cause init issues
+		if (hasValidations() && !isAuthorizedValue(getValue())) {
 			_logger.warn("Parameter {} has invalid value", toString());
 			result = false;
 		}
@@ -116,6 +119,12 @@ public abstract class AParameter<T> implements Serializable {
 
 	protected abstract void doSetValue(T value);
 
+	public boolean hasValidations() {
+		return READ_WRITE.equals(mode) || 
+				((_authorizedValues != null) && !_authorizedValues.isEmpty()) ||
+				((validators != null) && !validators.isEmpty());
+	}
+	
 	public boolean isAuthorizedValue(T value) {
 
 		if (READ_ONLY.equals(mode) && !Objects.equals(getValue(),value)) {
@@ -175,7 +184,7 @@ public abstract class AParameter<T> implements Serializable {
 		if (!validators.isEmpty()) {
 
 			String validatorID = null;
-			for (Map.Entry<String, Predicate<T>> entry : validators.entrySet()) {
+			for (Map.Entry<String, SerializablePredicate<T>> entry : validators.entrySet()) {
 				if (entry.getValue().test(v)) {
 					validatorID = entry.getKey();
 					continue;
@@ -221,7 +230,7 @@ public abstract class AParameter<T> implements Serializable {
 	// ******************************************************************************************************************
 	//
 
-	public AParameter<T> addValidator(String name, Predicate<T> validator) {
+	public AParameter<T> addValidator(String name, SerializablePredicate<T> validator) {
 
 		if (_authorizedValues != null && !_authorizedValues.stream().allMatch(validator)) {
 			throw new IllegalArgumentException(

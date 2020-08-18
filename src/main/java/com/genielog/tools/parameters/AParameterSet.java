@@ -1,25 +1,28 @@
 package com.genielog.tools.parameters;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public abstract class AParameterSet<T> {
+import com.genielog.tools.functional.SerializableBiConsumer;
 
+public abstract class AParameterSet<T> implements Serializable {
+
+	private static final long serialVersionUID = 989649135915978317L;
 	protected transient Logger _logger = null;
 	protected transient List<AParameterSet<T>> _parents;
 	protected transient Object owner = null;
-	protected transient List<BiConsumer<AParameter<T>, T>> _changeHandlers;
+	protected transient List<SerializableBiConsumer<AParameter<T>, T>> _changeHandlers;
 
-	private HashMap<String, AParameter<T>> _allParams;
+	private Map<String, AParameter<T>> _allParams;
 
 	//
 	// ******************************************************************************************************************
@@ -34,7 +37,7 @@ public abstract class AParameterSet<T> {
 
 	public AParameterSet(Map<String, T> params) {
 		for (Map.Entry<String, T> item : params.entrySet()) {
-			add(item.getKey(), item.getValue(), Parameter.READ_ONLY);
+			add(item.getKey(), item.getValue(), AParameter.READ_ONLY);
 		}
 	}
 
@@ -54,7 +57,7 @@ public abstract class AParameterSet<T> {
 
 	public void mapImport(Map<String, T> map) {
 		for (Map.Entry<String, T> entry : map.entrySet()) {
-			add(entry.getKey(), entry.getValue(), Parameter.READ_WRITE);
+			add(entry.getKey(), entry.getValue(), AParameter.READ_WRITE);
 		}
 	}
 
@@ -194,13 +197,12 @@ public abstract class AParameterSet<T> {
 		AParameter<T> p = search(name, false);
 		if (p != null) {
 			if (mode.equals(p.getMode()) && p.isWritable()) {
-				if (((value == null) && (p.getValue() == null)) || !value.equals(p.getValue())) {
+				if (((value == null) && (p.getValue() == null)) || ((value != null) && !value.equals(p.getValue()))) {
 					applyListeners(p, value);
 				}
 				p.setValue(value);
 			} else {
 				_logger.debug("Can't add twice the same parameter {}, with different mode {}.", name, mode);
-				p = null;
 				throw new IllegalArgumentException(
 						"Can't create twice the same parameter, check param name colision for " + name);
 			}
@@ -264,7 +266,7 @@ public abstract class AParameterSet<T> {
 				.filter(p -> p.getName().matches(pattern))//
 				.collect(Collectors.toList());
 
-		matches.forEach(p -> remove(p));
+		matches.forEach(AParameter::remove);
 
 		return matches.size();
 	}
@@ -402,12 +404,12 @@ public abstract class AParameterSet<T> {
 		_changeHandlers.clear();
 	}
 
-	public void addChangeListener(BiConsumer<AParameter<T>, T> listener) {
+	public void addChangeListener(SerializableBiConsumer<AParameter<T>, T> listener) {
 		_changeHandlers.add(listener);
 	}
 
 	protected void applyListeners(AParameter<T> param, T newValue) {
-		for (BiConsumer<AParameter<T>, T> handler : _changeHandlers) {
+		for (SerializableBiConsumer<AParameter<T>, T> handler : _changeHandlers) {
 			handler.accept(param, newValue);
 		}
 	}
@@ -415,7 +417,7 @@ public abstract class AParameterSet<T> {
 	public boolean isValid() {
 		boolean result = true;
 
-		boolean paramsAreValid = _allParams.values().stream().allMatch(p -> p.isValid());
+		boolean paramsAreValid = _allParams.values().stream().allMatch(AParameter::isValid);
 		if (!paramsAreValid) {
 			_logger.error("ParameterSet is not valid because some of its parameter are not.");
 			result = false;

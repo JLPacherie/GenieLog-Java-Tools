@@ -1,8 +1,9 @@
 package com.genielog.tools.parameters;
 
+import java.io.Serializable;
 import java.util.Map;
 
-public class ParameterSet extends AParameterSet<String> {
+public class ParameterSet extends AParameterSet<String> implements Serializable {
 
 	private static final long serialVersionUID = -2713284450963955130L;
 

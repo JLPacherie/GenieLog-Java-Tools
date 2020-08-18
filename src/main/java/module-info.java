@@ -2,6 +2,7 @@
 open module com.genielog.tools {
 	exports com.genielog.tools.json;
 	exports com.genielog.tools.parameters;
+	exports com.genielog.tools.functional;
 	exports com.genielog.tools;
 
 	requires com.fasterxml.jackson.core;

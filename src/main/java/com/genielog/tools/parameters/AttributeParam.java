@@ -1,15 +1,15 @@
 package com.genielog.tools.parameters;
 
-import java.util.function.Consumer;
-import java.util.function.Supplier;
+import com.genielog.tools.functional.SerializableConsumer;
+import com.genielog.tools.functional.SerializableSupplier;
 
 public class AttributeParam<T> extends AParameter<T> {
 
 	private static final long serialVersionUID = -1850243469246367740L;
-	private Supplier<T> getter;
-	private Consumer<T> setter;
+	private SerializableSupplier<T> getter;
+	private SerializableConsumer<T> setter;
 
-	public AttributeParam(String name, Supplier<T> getter, Consumer<T> setter) {
+	public AttributeParam(String name, SerializableSupplier<T> getter, SerializableConsumer<T> setter) {
 		super(name, null, (setter == null) ? READ_ONLY : READ_WRITE);
 		this.getter = getter;
 		this.setter = setter;
