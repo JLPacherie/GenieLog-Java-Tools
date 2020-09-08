@@ -24,5 +24,15 @@
 			<attribute name="org.eclipse.jst.component.nondependency" value=""/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="lib" path="/home/pacherie/.m2/repository/org/awaitility/awaitility/3.1.6/awaitility-3.1.6.jar" sourcepath="/home/pacherie/.m2/repository/org/awaitility/awaitility/3.1.6/awaitility-3.1.6-sources.jar">
+		<attributes>
+			<attribute name="maven.pomderived" value="true"/>
+			<attribute name="org.eclipse.jst.component.archivename" value="awaitility-3.1.6.jar"/>
+			<attribute name="maven.groupId" value="org.awaitility"/>
+			<attribute name="maven.artifactId" value="awaitility"/>
+			<attribute name="maven.version" value="3.1.6"/>
+			<attribute name="maven.scope" value="compile"/>
+		</attributes>
+	</classpathentry>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

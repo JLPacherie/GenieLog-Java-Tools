@@ -10,5 +10,6 @@ open module com.genielog.tools {
 	//requires log4j.core;
 	requires org.apache.logging.log4j;
 	requires org.apache.logging.log4j.core;
+	requires awaitility;
 
 }
