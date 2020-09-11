@@ -23,24 +23,33 @@ public class Concurrency implements Closeable {
 
 	Logger logger = LogManager.getLogger(Concurrency.class);
 	ExecutorService executor = null;
-	
+	int startDelay = 0;
+
 	public Concurrency() {
-		executor =  Executors.newFixedThreadPool(10);
+		this(Integer.max(2, Runtime.getRuntime().availableProcessors() - 2));
 	}
-	
+
+	public Concurrency(int nbThreads) {
+		executor = Executors.newFixedThreadPool(nbThreads);
+	}
+
+	public void setStartDelay(int delay) {
+		startDelay = delay;
+	}
+
 	@Override
 	public void close() {
 		executor.shutdown();
 	}
 
-	//******************************************************************************************************************
+	// ******************************************************************************************************************
 	// Parallel Map
 	// ******************************************************************************************************************
-	
+
 	public <SOURCE> void parallel(Stream<SOURCE> sources, int chunkSize, SerializableConsumer<SOURCE> action) {
 		Spliterator<SOURCE> splitSources = sources.spliterator();
 		List<Future> futures = new ArrayList<>();
-		
+
 		while (true) {
 
 			//
@@ -61,19 +70,21 @@ public class Concurrency implements Closeable {
 					action.accept(src);
 				}
 			}, executor));
+			Awaitility.await().atLeast(startDelay, TimeUnit.MILLISECONDS);
+
 		}
-		
+
 		while (!futures.isEmpty()) {
 			Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
 			if (f != null) {
-					logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
+				logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
 			} else {
 				Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
 			}
 		}
 	}
-	
-	//******************************************************************************************************************
+
+	// ******************************************************************************************************************
 	// Parallel Map + Sequential Reduce
 	// ******************************************************************************************************************
 	public <SOURCE, DEST> void parallel(
@@ -83,10 +94,10 @@ public class Concurrency implements Closeable {
 																			SerializableConsumer<DEST> reduceAction)
 	//
 	{
-		
+
 		Spliterator<SOURCE> splitSources = sources.spliterator();
 		List<Future<List<DEST>>> mapFutures = new ArrayList<>();
-		
+
 		while (true) {
 
 			//
@@ -110,6 +121,13 @@ public class Concurrency implements Closeable {
 
 				return chunkResults;
 			}, executor));
+
+			try {
+				Thread.sleep(startDelay);
+			} catch (InterruptedException e) {
+
+			}
+
 		}
 
 		//
