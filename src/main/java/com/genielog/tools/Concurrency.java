@@ -22,7 +22,7 @@ import com.genielog.tools.functional.SerializableFunction;
 public class Concurrency implements Closeable {
 
 	Logger logger = LogManager.getLogger(Concurrency.class);
-	ExecutorService executor = null;
+	public ExecutorService executor = null;
 	int startDelay = 0;
 
 	public Concurrency() {
@@ -42,6 +42,12 @@ public class Concurrency implements Closeable {
 		executor.shutdown();
 	}
 
+	SerializableConsumer<Object> listener = null;
+
+	public void setMonitorListener(SerializableConsumer<Object> listener) {
+		this.listener = listener;
+	}
+
 	// ******************************************************************************************************************
 	// Parallel Map
 	// ******************************************************************************************************************
@@ -49,7 +55,7 @@ public class Concurrency implements Closeable {
 	public <SOURCE> void parallel(Stream<SOURCE> sources, int chunkSize, SerializableConsumer<SOURCE> action) {
 		Spliterator<SOURCE> splitSources = sources.spliterator();
 		List<Future> futures = new ArrayList<>();
-
+		int nbChunks = 0;
 		while (true) {
 
 			//
@@ -61,6 +67,7 @@ public class Concurrency implements Closeable {
 			if (chunk.isEmpty())
 				break;
 
+			nbChunks++;
 			//
 			// Launching a new process for the source data.
 			//
@@ -70,14 +77,25 @@ public class Concurrency implements Closeable {
 					action.accept(src);
 				}
 			}, executor));
-			Awaitility.await().atLeast(startDelay, TimeUnit.MILLISECONDS);
 
+			Awaitility.await().atLeast(startDelay, TimeUnit.MILLISECONDS);
 		}
+
+		logger.info("{} Chunks of {} size submitted.", nbChunks,chunkSize);
 
 		while (!futures.isEmpty()) {
 			Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
 			if (f != null) {
 				logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
+				futures.remove(f);
+				if (listener != null) {
+					try {
+						listener.accept(f.get());
+					} catch (InterruptedException | ExecutionException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+				}
 			} else {
 				Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
 			}
@@ -143,6 +161,10 @@ public class Concurrency implements Closeable {
 				} catch (InterruptedException | ExecutionException e) {
 					e.printStackTrace();
 				}
+				if (listener != null) {
+					listener.accept(contrib);
+				}
+
 				if (contrib != null) {
 					logger.debug("Processing new results chunk for {} values, {} chunks left", contrib.size(),
 							(mapFutures.size() - 1));
