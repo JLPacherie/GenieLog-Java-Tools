@@ -72,10 +72,11 @@ public class Concurrency implements Closeable {
 			// Launching a new process for the source data.
 			//
 			logger.debug("Starting a new chunk for {} entries", chunk.size());
-			futures.add(CompletableFuture.runAsync(() -> {
+			futures.add(CompletableFuture.supplyAsync(() -> {
 				for (SOURCE src : chunk) {
 					action.accept(src);
 				}
+				return chunk;
 			}, executor));
 
 			Awaitility.await().atLeast(startDelay, TimeUnit.MILLISECONDS);
