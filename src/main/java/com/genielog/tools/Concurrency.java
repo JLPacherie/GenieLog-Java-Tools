@@ -71,7 +71,8 @@ public class Concurrency implements Closeable {
 			//
 			// Launching a new process for the source data.
 			//
-			logger.debug("Starting a new chunk for {} entries", chunk.size());
+			if (listener != null)
+				logger.debug("Starting a new chunk for {} entries", chunk.size());
 			futures.add(CompletableFuture.supplyAsync(() -> {
 				for (SOURCE src : chunk) {
 					action.accept(src);
@@ -82,19 +83,20 @@ public class Concurrency implements Closeable {
 			Awaitility.await().atLeast(startDelay, TimeUnit.MILLISECONDS);
 		}
 
-		logger.info("{} Chunks of {} size submitted.", nbChunks,chunkSize);
+		if (listener != null)
+			logger.info("{} Chunks of {} size submitted.", nbChunks, chunkSize);
 
 		while (!futures.isEmpty()) {
 			Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
 			if (f != null) {
-				logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
+				if (listener != null)
+					logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
 				futures.remove(f);
 				if (listener != null) {
 					try {
 						listener.accept(f.get());
 					} catch (InterruptedException | ExecutionException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
+						logger.error("Listener triggered an exception: {}", e.getLocalizedMessage());
 					}
 				}
 			} else {
@@ -131,13 +133,17 @@ public class Concurrency implements Closeable {
 			//
 			// Launching a new process for the source data.
 			//
-			logger.debug("Starting a new chunk for {} entries", chunk.size());
+			if (listener != null)
+				logger.debug("Starting a new chunk for {} entries", chunk.size());
 			mapFutures.add(CompletableFuture.supplyAsync(() -> {
 				List<DEST> chunkResults = new ArrayList<>();
 				for (SOURCE src : chunk) {
-					chunkResults.add(mapAction.apply(src));
+					try {
+						chunkResults.add(mapAction.apply(src));
+					} catch (Exception e) {
+						logger.error("Concurrent task triggered an exception: {}", e.getLocalizedMessage());
+					}
 				}
-
 				return chunkResults;
 			}, executor));
 
@@ -154,7 +160,8 @@ public class Concurrency implements Closeable {
 		//
 		while (!mapFutures.isEmpty()) {
 			Future<List<DEST>> f = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
-			if (f != null) {
+
+			while (f != null) {
 
 				List<DEST> contrib = null;
 				try {
@@ -162,27 +169,35 @@ public class Concurrency implements Closeable {
 				} catch (InterruptedException | ExecutionException e) {
 					e.printStackTrace();
 				}
+
 				if (listener != null) {
 					listener.accept(contrib);
 				}
 
 				if (contrib != null) {
-					logger.debug("Processing new results chunk for {} values, {} chunks left", contrib.size(),
-							(mapFutures.size() - 1));
+					if (listener != null)
+						logger.debug("Processing new results chunk for {} values, {} chunks left", contrib.size(),
+								(mapFutures.size() - 1));
 					//
 					// Processing each result
 					//
 					if (reduceAction != null) {
 						for (DEST result : contrib) {
-							reduceAction.accept(result);
+							try {
+								reduceAction.accept(result);
+							} catch (Exception e) {
+								logger.error("Reducing task triggered an exception: {}", e.getLocalizedMessage());
+							}
 						}
 					}
-					logger.debug("Processing done, {} chunks left", (mapFutures.size() - 1));
+					if (listener != null) {
+						logger.debug("Processing done, {} chunks left", (mapFutures.size() - 1));
+					}
 				}
 				mapFutures.remove(f);
-			} else {
-				Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
+				f = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
 			}
+			Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
 		}
 	}
 
