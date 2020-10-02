@@ -222,13 +222,25 @@ public abstract class AParameterSet<T> implements Serializable {
 	// ******************************************************************************************************************
 	//
 
+	public void add(AParameterSet<T> other, boolean incParents) {
+		other.parameters(incParents).forEach( (AParameter<T> param) -> {
+			String name = param.getName();
+			if (has(name)) {
+				set(name,param.getValue());
+			} else {
+				add(name,param.getValue(),param.getMode());
+			}
+		});
+	}
+
+	/*
 	public void add(AParameterSet<T> other) {
 		if (other != null) {
 			other.parameters(false).forEach(this::add);
 			_parents.addAll(other._parents);
 		}
 	}
-
+	*/
 	//
 	// ******************************************************************************************************************
 	//
