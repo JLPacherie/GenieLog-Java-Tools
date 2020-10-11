@@ -23,267 +23,307 @@ import com.genielog.tools.functional.SerializablePredicate;
 
 public class Concurrency implements Closeable {
 
-	Logger logger = LogManager.getLogger(Concurrency.class);
-	public ExecutorService executor = null;
-	int startDelay = 0;
+  Logger logger = LogManager.getLogger(Concurrency.class);
+  public ExecutorService executor = null;
+  int startDelay = 0;
 
-	public static final Concurrency instance = new Concurrency();
+  public static final Concurrency instance = new Concurrency();
 
-	public Concurrency() {
-		this(Integer.max(2, Runtime.getRuntime().availableProcessors() - 2));
-	}
+  public Concurrency() {
+    this(Integer.max(2, Runtime.getRuntime().availableProcessors() - 2));
+  }
 
-	public Concurrency(int nbThreads) {
-		executor = Executors.newFixedThreadPool(nbThreads);
-	}
+  public Concurrency(int nbThreads) {
+    executor = Executors.newFixedThreadPool(nbThreads);
+  }
 
-	public void setStartDelay(int delay) {
-		startDelay = delay;
-	}
+  public void setStartDelay(int delay) {
+    startDelay = delay;
+  }
 
-	@Override
-	public void close() {
-		executor.shutdown();
-	}
+  @Override
+  public void close() {
+    executor.shutdown();
+  }
 
-	SerializableConsumer<Object> listener = null;
+  SerializableConsumer<Object> listener = null;
 
-	public void setMonitorListener(SerializableConsumer<Object> listener) {
-		this.listener = listener;
-	}
+  public void setMonitorListener(SerializableConsumer<Object> listener) {
+    this.listener = listener;
+  }
 
-	public <SOURCE> void forEach(List<SOURCE> source, SerializableConsumer<SOURCE> mapper) {
-		int chunkSize = 1000;
-		if (source.size() < chunkSize) {
-			source.forEach(mapper);
-		} else {
-			List<Future> futures = new ArrayList<>();
+  //
+  // ****************************************************************************************************************
+  //
 
-			int index = 0;
-			while (index < source.size()) {
-				int firstIndex = index;
-				int lastIndex = Integer.min(source.size(), index + chunkSize);
-				futures.add(CompletableFuture.runAsync(() -> {
-					for (int i = firstIndex; i < lastIndex; i++) {
-						try {
-							mapper.accept(source.get(i));
-						} catch (Exception e) {
-							logger.error("Concurrent task triggered an exception: {}", e.getLocalizedMessage());
-							e.printStackTrace();
-						}
-					}
-				}, executor));
-				index += chunkSize;
-			}
+  /**
+   * Execute a concurrent Map operation on a sequence of source items provided in a list. The provided list will be
+   * virtually split into consecutive sequences of chunkSize length and each sequence will be processed in a dedicated
+   * thread with the Map operator.
+   * 
+   * The execution of this method is synchronous and will return when each list provided will be processed.
+   * 
+   * @param <SOURCE>
+   *          The type of the items in the list.
+   * @param source
+   *          The list of items to be processed concurrently
+   * @param mapper
+   *          The operator to apply on each item of the list.
+   */
+  public <SOURCE> void forEach(List<SOURCE> source, SerializableConsumer<SOURCE> mapper) {
+    int chunkSize = 1000;
+    if (source.size() < chunkSize) {
+      source.forEach(mapper);
+    } else {
+      List<Future> futures = new ArrayList<>();
 
-			while (!futures.isEmpty()) {
-				Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
-				if (f != null) {
-					if (listener != null)
-						logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
-					futures.remove(f);
-					if (listener != null) {
-						try {
-							listener.accept(f.get());
-						} catch (InterruptedException | ExecutionException e) {
-							logger.error("Listener triggered an exception: {}", e.getLocalizedMessage());
-						}
-					}
-				} else {
-					Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
-				}
-			}
-		}
+      int index = 0;
+      while (index < source.size()) {
+        int firstIndex = index;
+        int lastIndex = Integer.min(source.size(), index + chunkSize);
+        futures.add(CompletableFuture.runAsync(() -> {
+          for (int i = firstIndex; i < lastIndex; i++) {
+            try {
+              mapper.accept(source.get(i));
+            } catch (Exception e) {
+              logger.error("Concurrent task triggered an exception: {}", e.getLocalizedMessage());
+              e.printStackTrace();
+            }
+          }
+        }, executor));
+        index += chunkSize;
+      }
 
-	}
+      while (!futures.isEmpty()) {
+        Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
+        if (f != null) {
+          if (listener != null)
+            logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
+          futures.remove(f);
+          if (listener != null) {
+            try {
+              listener.accept(f.get());
+            } catch (InterruptedException | ExecutionException e) {
+              logger.error("Listener triggered an exception: {}", e.getLocalizedMessage());
+            }
+          }
+        } else {
+          Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
+        }
+      }
+    }
 
-	// ******************************************************************************************************************
-	// Parallel Map
-	// ******************************************************************************************************************
+  }
 
-	public <SOURCE> SOURCE search(Stream<SOURCE> source, SerializablePredicate<SOURCE> finder) {
+  //
+  // ******************************************************************************************************************
+  //
 
-		AtomicReference<SOURCE> result = new AtomicReference<>(null);
+  /**
+   * From a source of items provided with a stream, search for the first one matching the finder predicate. As soon as a
+   * match is found, all threads are interrupted.
+   * 
+   * @param <SOURCE>
+   * @param source
+   * @param finder
+   * @return
+   */
+  public <SOURCE> SOURCE search(Stream<SOURCE> source, SerializablePredicate<SOURCE> finder) {
 
-		parallel(source, 1000,
-				(SOURCE item) -> finder.test(item) ? item : null,
-				(SOURCE match) -> {
-					if (match != null) {
-						result.set(match);
-						aborted = true;
-					}
-				});
+    AtomicReference<SOURCE> result = new AtomicReference<>(null);
 
-		return result.get();
-	}
+    MapRedOperator<SOURCE, SOURCE> searchOperator = new MapRedOperator<>();
+    searchOperator.filter = finder;
+    searchOperator.mapper = item -> item;
+    searchOperator.reducer = (prev,contrib) -> {
+      if (contrib != null) {
+        abort();
+      }
+      return contrib;
+    };
+    
+    searchOperator.initValueSupplier = () -> null;
+    
+    parallel(source,1000,searchOperator);
+    
+    return searchOperator.result;
+  }
 
-	public <SOURCE> void parallel(Stream<SOURCE> sources, int chunkSize, SerializableConsumer<SOURCE> action) {
-		Spliterator<SOURCE> splitSources = sources.spliterator();
-		List<Future> futures = new ArrayList<>();
-		int nbChunks = 0;
-		aborted = false;
-		while (!aborted) {
+  public <SOURCE> void parallel(Stream<SOURCE> sources, int chunkSize, SerializableConsumer<SOURCE> action) {
+    Spliterator<SOURCE> splitSources = sources.spliterator();
+    List<Future> futures = new ArrayList<>();
+    int nbChunks = 0;
+    aborted = false;
+    while (!aborted) {
 
-			//
-			// Create the chunk of source data to be processed by a same process
-			//
-			List<SOURCE> chunk = new ArrayList<>(chunkSize);
-			for (int i = 0; (!aborted) && (i < chunkSize) && splitSources.tryAdvance(chunk::add); i++)
-				;
-			if (chunk.isEmpty())
-				break;
+      //
+      // Create the chunk of source data to be processed by a same process
+      //
+      List<SOURCE> chunk = new ArrayList<>(chunkSize);
+      for (int i = 0; (!aborted) && (i < chunkSize) && splitSources.tryAdvance(chunk::add); i++)
+        ;
+      if (chunk.isEmpty())
+        break;
 
-			nbChunks++;
-			//
-			// Launching a new process for the source data.
-			//
-			if (listener != null)
-				logger.debug("Starting a new chunk for {} entries", chunk.size());
-			futures.add(CompletableFuture.supplyAsync(() -> {
-				for (int iSrc = 0; (!aborted) && (iSrc < chunk.size()); iSrc++) {
-					try {
-						SOURCE src = chunk.get(iSrc);
-						action.accept(src);
-					} catch (Exception e) {
-						logger.error("Concurrent task triggered an exception: {}", e.getLocalizedMessage());
-						e.printStackTrace();
-					}
-				}
-				return chunk;
-			}, executor));
+      nbChunks++;
+      //
+      // Launching a new process for the source data.
+      //
+      if (listener != null)
+        logger.debug("Starting a new chunk for {} entries", chunk.size());
+      futures.add(CompletableFuture.supplyAsync(() -> {
+        for (int iSrc = 0; (!aborted) && (iSrc < chunk.size()); iSrc++) {
+          try {
+            SOURCE src = chunk.get(iSrc);
+            action.accept(src);
+          } catch (Exception e) {
+            logger.error("Concurrent task triggered an exception: {}", e.getLocalizedMessage());
+            e.printStackTrace();
+          }
+        }
+        return chunk;
+      }, executor));
 
-			Awaitility.await().atLeast(startDelay, TimeUnit.MILLISECONDS);
-		}
+      Awaitility.await().atLeast(startDelay, TimeUnit.MILLISECONDS);
+    }
 
-		if (listener != null)
-			logger.info("{} Chunks of {} size submitted.", nbChunks, chunkSize);
+    if (listener != null)
+      logger.info("{} Chunks of {} size submitted.", nbChunks, chunkSize);
 
-		while (!futures.isEmpty()) {
-			Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
-			if (f != null) {
-				if (listener != null)
-					logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
-				futures.remove(f);
-				if (listener != null) {
-					try {
-						listener.accept(f.get());
-					} catch (InterruptedException | ExecutionException e) {
-						logger.error("Listener triggered an exception: {}", e.getLocalizedMessage());
-					}
-				}
-			} else {
-				Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
-			}
-		}
-	}
+    while (!futures.isEmpty()) {
+      Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
+      if (f != null) {
+        if (listener != null)
+          logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
+        futures.remove(f);
+        if (listener != null) {
+          try {
+            listener.accept(f.get());
+          } catch (InterruptedException | ExecutionException e) {
+            logger.error("Listener triggered an exception: {}", e.getLocalizedMessage());
+          }
+        }
+      } else {
+        Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
+      }
+    }
+  }
 
-	// ******************************************************************************************************************
-	// Parallel Map + Sequential Reduce
-	// ******************************************************************************************************************
-	public <SOURCE, DEST> void parallel(
-																			Stream<SOURCE> sources,
-																			int chunkSize,
-																			SerializableFunction<SOURCE, DEST> mapAction,
-																			SerializableConsumer<DEST> reduceAction)
-	//
-	{
+  // ******************************************************************************************************************
+  // Parallel Map + Sequential Reduce
+  // ******************************************************************************************************************
 
-		Spliterator<SOURCE> splitSources = sources.spliterator();
-		List<Future<List<DEST>>> mapFutures = new ArrayList<>();
-		aborted = false;
+  public <SOURCE, RESULT> RESULT parallel(Stream<SOURCE> sources,
+                                        int chunkSize,
+                                        MapRedOperator<SOURCE, RESULT> operator) {
 
-		while (!aborted) {
+    if (operator == null) {
+      throw new IllegalArgumentException("Concurrent operator not defined.");
+    }
 
-			//
-			// Create the chunk of source data to be processed by a same process
-			//
-			List<SOURCE> chunk = new ArrayList<>(chunkSize);
-			for (int i = 0; (i < chunkSize) && (!aborted) && splitSources.tryAdvance(chunk::add); i++)
-				;
-			if (chunk.isEmpty())
-				break;
+    if (operator.mapper == null) {
+      throw new IllegalArgumentException("Concurrent mapper of operator not defined.");
+    }
 
-			//
-			// Launching a new process for the source data.
-			//
-			if (listener != null)
-				logger.debug("Starting a new chunk for {} entries", chunk.size());
+    if (operator.reducer == null) {
+      throw new IllegalArgumentException("Concurrent reducer of operator not defined.");
+    }
 
-			mapFutures.add(CompletableFuture.supplyAsync(() -> {
-				List<DEST> chunkResults = new ArrayList<>();
-				for (int iSrc = 0; (!aborted) && (iSrc < chunk.size()); iSrc++) {
-					try {
-						SOURCE src = chunk.get(iSrc);
-						chunkResults.add(mapAction.apply(src));
-					} catch (Exception e) {
-						logger.error("Concurrent task triggered an exception: {}", e.getLocalizedMessage());
-						e.printStackTrace();
-					}
-				}
-				return chunkResults;
-			}, executor));
+    operator.init();
 
-			try {
-				Thread.sleep(startDelay);
-			} catch (InterruptedException e) {
+    Spliterator<SOURCE> splitSources = sources.spliterator();
+    List<Future<RESULT>> mapFutures = new ArrayList<>();
+    aborted = false;
 
-			}
+    while (!aborted) {
 
-		}
+      //
+      // Create the chunk of source data to be processed by a same process
+      //
+      List<SOURCE> chunk = new ArrayList<>(chunkSize);
+      for (int i = 0; (i < chunkSize) && (!aborted) && splitSources.tryAdvance(chunk::add); i++)
+        ;
+      if (chunk.isEmpty())
+        break;
 
-		//
-		// Reduction
-		//
-		while (!mapFutures.isEmpty()) {
-			Future<List<DEST>> f = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
+      //
+      // Launching a new process for the source data.
+      //
+      if (listener != null)
+        logger.debug("Starting a new chunk for {} entries", chunk.size());
 
-			while (f != null) {
+      mapFutures.add(CompletableFuture.supplyAsync(() -> {
+        return operator.exec(chunk.stream());
+      }, executor));
 
-				List<DEST> contrib = null;
-				try {
-					contrib = f.get();
-				} catch (InterruptedException | ExecutionException e) {
-					e.printStackTrace();
-				}
+      try {
+        Thread.sleep(startDelay);
+      } catch (InterruptedException e) {
 
-				if (listener != null) {
-					listener.accept(contrib);
-				}
+      }
 
-				if (contrib != null) {
-					if (listener != null)
-						logger.debug("Processing new results chunk for {} values, {} chunks left", contrib.size(),
-								(mapFutures.size() - 1));
-					//
-					// Processing each result
-					//
-					if (reduceAction != null) {
-						for (DEST result : contrib) {
-							try {
-								reduceAction.accept(result);
-							} catch (Exception e) {
-								logger.error("Reducing task triggered an exception: {}", e.getLocalizedMessage());
-							}
-						}
-					}
-					if (listener != null) {
-						logger.debug("Processing done, {} chunks left", (mapFutures.size() - 1));
-					}
-				}
-				mapFutures.remove(f);
-				f = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
-			}
-			Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
-		}
-	}
+    }
 
-	volatile boolean aborted = false;
+    //
+    // Reduction
+    //
+    while (!mapFutures.isEmpty()) {
+      Future<RESULT> f = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
 
-	public boolean aborted() {
-		return aborted;
-	}
-	public void abort() {
-		aborted = true;
-	}
+      while (f != null) {
+
+        RESULT contrib = null;
+        try {
+          contrib = f.get();
+        } catch (InterruptedException | ExecutionException e) {
+          e.printStackTrace();
+        }
+
+        if (listener != null) {
+          listener.accept(contrib);
+        }
+
+        if (contrib != null) {
+
+          if (listener != null)
+            logger.debug("Processing new results chunk for {} values, {} chunks left", chunkSize,
+                (mapFutures.size() - 1));
+
+          //
+          // Processing each result
+          //
+          if (operator.reducer != null) {
+
+            try {
+              operator.result = operator.reducer.apply(operator.result, contrib);
+            } catch (Exception e) {
+              logger.error("Reducing task triggered an exception: {}", e.getLocalizedMessage());
+            }
+          }
+        }
+
+        if (listener != null) {
+          logger.debug("Processing done, {} chunks left", (mapFutures.size() - 1));
+        }
+
+        mapFutures.remove(f);
+        f = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
+      }
+      Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
+    }
+    
+    return operator.result;
+    
+  }
+
+  volatile boolean aborted = false;
+
+  public boolean aborted() {
+    return aborted;
+  }
+
+  public void abort() {
+    aborted = true;
+  }
 
 }
