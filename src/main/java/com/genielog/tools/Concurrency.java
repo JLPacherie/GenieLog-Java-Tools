@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
@@ -18,12 +19,15 @@ import org.awaitility.Awaitility;
 
 import com.genielog.tools.functional.SerializableConsumer;
 import com.genielog.tools.functional.SerializableFunction;
+import com.genielog.tools.functional.SerializablePredicate;
 
 public class Concurrency implements Closeable {
 
 	Logger logger = LogManager.getLogger(Concurrency.class);
 	public ExecutorService executor = null;
 	int startDelay = 0;
+
+	public static final Concurrency instance = new Concurrency();
 
 	public Concurrency() {
 		this(Integer.max(2, Runtime.getRuntime().availableProcessors() - 2));
@@ -48,21 +52,83 @@ public class Concurrency implements Closeable {
 		this.listener = listener;
 	}
 
+	public <SOURCE> void forEach(List<SOURCE> source, SerializableConsumer<SOURCE> mapper) {
+		int chunkSize = 1000;
+		if (source.size() < chunkSize) {
+			source.forEach(mapper);
+		} else {
+			List<Future> futures = new ArrayList<>();
+
+			int index = 0;
+			while (index < source.size()) {
+				int firstIndex = index;
+				int lastIndex = Integer.min(source.size(), index + chunkSize);
+				futures.add(CompletableFuture.runAsync(() -> {
+					for (int i = firstIndex; i < lastIndex; i++) {
+						try {
+							mapper.accept(source.get(i));
+						} catch (Exception e) {
+							logger.error("Concurrent task triggered an exception: {}", e.getLocalizedMessage());
+							e.printStackTrace();
+						}
+					}
+				}, executor));
+				index += chunkSize;
+			}
+
+			while (!futures.isEmpty()) {
+				Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
+				if (f != null) {
+					if (listener != null)
+						logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
+					futures.remove(f);
+					if (listener != null) {
+						try {
+							listener.accept(f.get());
+						} catch (InterruptedException | ExecutionException e) {
+							logger.error("Listener triggered an exception: {}", e.getLocalizedMessage());
+						}
+					}
+				} else {
+					Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
+				}
+			}
+		}
+
+	}
+
 	// ******************************************************************************************************************
 	// Parallel Map
 	// ******************************************************************************************************************
+
+	public <SOURCE> SOURCE search(Stream<SOURCE> source, SerializablePredicate<SOURCE> finder) {
+
+		AtomicReference<SOURCE> result = new AtomicReference<>(null);
+
+		parallel(source, 1000,
+				(SOURCE item) -> finder.test(item) ? item : null,
+				(SOURCE match) -> {
+					if (match != null) {
+						result.set(match);
+						aborted = true;
+					}
+				});
+
+		return result.get();
+	}
 
 	public <SOURCE> void parallel(Stream<SOURCE> sources, int chunkSize, SerializableConsumer<SOURCE> action) {
 		Spliterator<SOURCE> splitSources = sources.spliterator();
 		List<Future> futures = new ArrayList<>();
 		int nbChunks = 0;
-		while (true) {
+		aborted = false;
+		while (!aborted) {
 
 			//
 			// Create the chunk of source data to be processed by a same process
 			//
 			List<SOURCE> chunk = new ArrayList<>(chunkSize);
-			for (int i = 0; i < chunkSize && splitSources.tryAdvance(chunk::add); i++)
+			for (int i = 0; (!aborted) && (i < chunkSize) && splitSources.tryAdvance(chunk::add); i++)
 				;
 			if (chunk.isEmpty())
 				break;
@@ -74,8 +140,14 @@ public class Concurrency implements Closeable {
 			if (listener != null)
 				logger.debug("Starting a new chunk for {} entries", chunk.size());
 			futures.add(CompletableFuture.supplyAsync(() -> {
-				for (SOURCE src : chunk) {
-					action.accept(src);
+				for (int iSrc = 0; (!aborted) && (iSrc < chunk.size()); iSrc++) {
+					try {
+						SOURCE src = chunk.get(iSrc);
+						action.accept(src);
+					} catch (Exception e) {
+						logger.error("Concurrent task triggered an exception: {}", e.getLocalizedMessage());
+						e.printStackTrace();
+					}
 				}
 				return chunk;
 			}, executor));
@@ -118,14 +190,15 @@ public class Concurrency implements Closeable {
 
 		Spliterator<SOURCE> splitSources = sources.spliterator();
 		List<Future<List<DEST>>> mapFutures = new ArrayList<>();
+		aborted = false;
 
-		while (true) {
+		while (!aborted) {
 
 			//
 			// Create the chunk of source data to be processed by a same process
 			//
 			List<SOURCE> chunk = new ArrayList<>(chunkSize);
-			for (int i = 0; i < chunkSize && splitSources.tryAdvance(chunk::add); i++)
+			for (int i = 0; (i < chunkSize) && (!aborted) && splitSources.tryAdvance(chunk::add); i++)
 				;
 			if (chunk.isEmpty())
 				break;
@@ -135,13 +208,16 @@ public class Concurrency implements Closeable {
 			//
 			if (listener != null)
 				logger.debug("Starting a new chunk for {} entries", chunk.size());
+
 			mapFutures.add(CompletableFuture.supplyAsync(() -> {
 				List<DEST> chunkResults = new ArrayList<>();
-				for (SOURCE src : chunk) {
+				for (int iSrc = 0; (!aborted) && (iSrc < chunk.size()); iSrc++) {
 					try {
+						SOURCE src = chunk.get(iSrc);
 						chunkResults.add(mapAction.apply(src));
 					} catch (Exception e) {
 						logger.error("Concurrent task triggered an exception: {}", e.getLocalizedMessage());
+						e.printStackTrace();
 					}
 				}
 				return chunkResults;
@@ -199,6 +275,15 @@ public class Concurrency implements Closeable {
 			}
 			Awaitility.await().atLeast(500, TimeUnit.MILLISECONDS);
 		}
+	}
+
+	volatile boolean aborted = false;
+
+	public boolean aborted() {
+		return aborted;
+	}
+	public void abort() {
+		aborted = true;
 	}
 
 }

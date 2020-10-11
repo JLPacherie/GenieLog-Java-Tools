@@ -233,14 +233,6 @@ public abstract class AParameterSet<T> implements Serializable {
 		});
 	}
 
-	/*
-	public void add(AParameterSet<T> other) {
-		if (other != null) {
-			other.parameters(false).forEach(this::add);
-			_parents.addAll(other._parents);
-		}
-	}
-	*/
 	//
 	// ******************************************************************************************************************
 	//
@@ -251,6 +243,7 @@ public abstract class AParameterSet<T> implements Serializable {
 		}
 		p.setSet(this);
 		_allParams.put(p.getName(), p);
+		applyListeners(p,p.getValue());
 		return p;
 	}
 
@@ -267,6 +260,8 @@ public abstract class AParameterSet<T> implements Serializable {
 		}
 
 		_allParams.remove(p.getName());
+		p.setName(newName);
+		applyListeners(p,p.getValue());
 		_allParams.put(newName, p);
 	}
 	//
@@ -343,7 +338,7 @@ public abstract class AParameterSet<T> implements Serializable {
 
 	public void addParent(AParameterSet<T> other) {
 		if (hasParent(other)) {
-			_logger.error("Duplicate parent detected");
+			//_logger.error("Duplicate parent detected");
 			return;
 		}
 		if ((other == this) || other.hasParent(this)) {
