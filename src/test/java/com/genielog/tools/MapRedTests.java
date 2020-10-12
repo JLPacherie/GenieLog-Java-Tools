@@ -88,11 +88,12 @@ class MapRedTests extends BaseTest {
 	@Test
 	void testCompare() {
 		int allSizes[] = new int[] { 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 };
-		int blockSize = 1000;
 
-		Concurrency executor = new Concurrency();
+		int nbWorkers = 8;
+
+		Concurrency executor = new Concurrency(nbWorkers);
 		SimpleDateFormat sdf = new SimpleDateFormat("mm:ss.SS");
-		MapRedOperator<Integer, Long> operator = longOperator;
+		MapRedOperator<Integer, Long> operator = intSumOperator;
 
 		// --------------------------------------------------------------------------------------------------------------
 		// Calibration of Sequential Performance.
@@ -113,7 +114,7 @@ class MapRedTests extends BaseTest {
 		chrono = System.currentTimeMillis();
 		result = operator.exec(list.stream());
 		long sequentialChrono = System.currentTimeMillis() - chrono;
-		assertEquals(result, (long) seqSize * (seqSize + 1) / 2, "Sequential test failed for size " + seqSize);
+		assertEquals((long) seqSize * (seqSize + 1) / 2, result, "Sequential test failed for size " + seqSize);
 
 		double seqBandwidth = 1000 * (double) seqSize / (double) sequentialChrono;
 
@@ -123,11 +124,13 @@ class MapRedTests extends BaseTest {
 
 		for (int size : allSizes) {
 
+			list = makeSequence(size);
+			int blockSize = size / nbWorkers;
+
 			_logger.info("--------------------------------------------------------------");
 			_logger.info(" ** Test for size {}", String.format("%,9d", size));
-			_logger.info(" ** Concurrency level {}", "?");
-
-			list = makeSequence(size);
+			_logger.info(" ** Concurrency level {}", nbWorkers);
+			_logger.info(" ** unit Workload     {}", blockSize);
 
 			// --------------------------------------------------------------------------------------------------------------
 			// Concurrent test.
@@ -136,7 +139,7 @@ class MapRedTests extends BaseTest {
 			chrono = System.currentTimeMillis();
 			result = executor.parallel(list.stream(), blockSize, operator);
 			long mtChrono = System.currentTimeMillis() - chrono;
-			assertEquals(result, (long) size * (size + 1) / 2, "Concurrent test failed for size " + size);
+			assertEquals((long) size * (size + 1) / 2, result, "Concurrent test failed for size " + size);
 
 			double concurrentBandwidth = 1000 * (double) size / (double) mtChrono;
 
