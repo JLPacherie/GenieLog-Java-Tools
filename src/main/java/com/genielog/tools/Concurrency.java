@@ -10,7 +10,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
@@ -18,7 +17,6 @@ import org.apache.logging.log4j.Logger;
 import org.awaitility.Awaitility;
 
 import com.genielog.tools.functional.SerializableConsumer;
-import com.genielog.tools.functional.SerializableFunction;
 import com.genielog.tools.functional.SerializablePredicate;
 
 public class Concurrency implements Closeable {
@@ -46,6 +44,7 @@ public class Concurrency implements Closeable {
     executor.shutdown();
   }
 
+  // This is the listener that, when defined, will be triggered after each mapper execution
   SerializableConsumer<Object> listener = null;
 
   public void setMonitorListener(SerializableConsumer<Object> listener) {
@@ -75,7 +74,7 @@ public class Concurrency implements Closeable {
     if (source.size() < chunkSize) {
       source.forEach(mapper);
     } else {
-      List<Future> futures = new ArrayList<>();
+      List<Future<?>> futures = new ArrayList<>();
 
       int index = 0;
       while (index < source.size()) {
@@ -95,7 +94,7 @@ public class Concurrency implements Closeable {
       }
 
       while (!futures.isEmpty()) {
-        Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
+        Future<?> f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
         if (f != null) {
           if (listener != null)
             logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
@@ -130,8 +129,6 @@ public class Concurrency implements Closeable {
    */
   public <SOURCE> SOURCE search(Stream<SOURCE> source, SerializablePredicate<SOURCE> finder) {
 
-    AtomicReference<SOURCE> result = new AtomicReference<>(null);
-
     MapRedOperator<SOURCE, SOURCE> searchOperator = new MapRedOperator<>();
     searchOperator.filter = finder;
     searchOperator.mapper = item -> item;
@@ -144,14 +141,13 @@ public class Concurrency implements Closeable {
     
     searchOperator.initValueSupplier = () -> null;
     
-    parallel(source,1000,searchOperator);
+    return parallel(source,1000,searchOperator);
     
-    return searchOperator.result;
   }
 
   public <SOURCE> void parallel(Stream<SOURCE> sources, int chunkSize, SerializableConsumer<SOURCE> action) {
     Spliterator<SOURCE> splitSources = sources.spliterator();
-    List<Future> futures = new ArrayList<>();
+    List<Future<?>> futures = new ArrayList<>();
     int nbChunks = 0;
     aborted = false;
     while (!aborted) {
@@ -191,7 +187,7 @@ public class Concurrency implements Closeable {
       logger.info("{} Chunks of {} size submitted.", nbChunks, chunkSize);
 
     while (!futures.isEmpty()) {
-      Future f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
+      Future<?> f = futures.stream().filter(Future::isDone).findFirst().orElse(null);
       if (f != null) {
         if (listener != null)
           logger.debug("Processing chunk done, {} chunks left", (futures.size() - 1));
@@ -264,6 +260,8 @@ public class Concurrency implements Closeable {
 
     }
 
+    logger.debug("Triggered {} concurrent tasks...",mapFutures.size());
+    
     //
     // Reduction
     //

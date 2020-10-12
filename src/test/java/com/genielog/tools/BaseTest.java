@@ -1,8 +1,5 @@
 package com.genielog.tools;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.io.FileInputStream;
 import java.io.InputStream;
 
