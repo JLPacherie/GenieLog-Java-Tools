@@ -18,6 +18,7 @@ class MapRedTests extends BaseTest {
 	}
 
 	MapRedOperator<Integer, Long> intSumOperator = new MapRedOperator<>(
+			"Sum of Integers",
 			// No input filtering
 			null,
 			// No mapper (identity)
@@ -31,7 +32,10 @@ class MapRedTests extends BaseTest {
 			() -> Long.valueOf(0));
 
 	MapRedOperator<Integer, Long> longOperator = new MapRedOperator<>(
-			null, (Integer x) -> {
+			"Sum of Integers with delay",
+			// No filtering
+			null,
+			(Integer x) -> {
 				try {
 					Thread.sleep(10);
 				} catch (InterruptedException e) {
@@ -67,7 +71,7 @@ class MapRedTests extends BaseTest {
 	void testMultiThreaded() {
 		int allSizes[] = new int[] { 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 };
 
-		Concurrency executor = new Concurrency();
+		Concurrency executor = Concurrency.instance;
 
 		for (int size : allSizes) {
 
@@ -81,8 +85,6 @@ class MapRedTests extends BaseTest {
 
 		}
 
-		executor.close();
-
 	}
 
 	@Test
@@ -91,7 +93,7 @@ class MapRedTests extends BaseTest {
 
 		int nbWorkers = 8;
 
-		Concurrency executor = new Concurrency(nbWorkers);
+		Concurrency executor = new Concurrency("testComapre",nbWorkers);
 		SimpleDateFormat sdf = new SimpleDateFormat("mm:ss.SS");
 		MapRedOperator<Integer, Long> operator = intSumOperator;
 
