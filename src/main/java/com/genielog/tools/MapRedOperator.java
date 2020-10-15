@@ -106,7 +106,7 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 	}
 
 	public void abort() {
-		logger.debug("{} Execution aborted.", id);
+		//logger.debug("{} Execution aborted.", id);
 		isAborted = true;
 	}
 
@@ -116,7 +116,7 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 	 * 
 	 */
 	public RESULT exec(Stream<ITEM> t) {
-		logger.debug("{} Starting the operator on local contribution.", id);
+		//logger.debug("{} Starting the operator on local contribution.", id);
 		RESULT r = initValueSupplier.get();
 		return t.takeWhile(item -> !isAborted).filter(item -> filter == null || filter.test(item)).map(mapper).reduce(r,
 				reducer);
