@@ -21,15 +21,20 @@ import com.genielog.tools.functional.SerializableConsumer;
 public class Concurrency implements Closeable {
 
 	Logger logger = LogManager.getLogger(Concurrency.class);
-	public ExecutorService executor = null;
+	protected ExecutorService executor = null;
 	ThreadFactory namedThreadFactory;
 	int startDelay = 0;
 	String name;
 	public static final Concurrency instance = new Concurrency("shared",
 			Integer.max(2, Runtime.getRuntime().availableProcessors() - 2));
 
+	private Runnable beforeEachParallelExecution;
+	private Runnable afterEachParallelExecution;
+
 	public Concurrency(String name, int nbThreads) {
 		this.name = name;
+		this.beforeEachParallelExecution = null;
+		this.afterEachParallelExecution = null;
 		executor = Executors.newFixedThreadPool(nbThreads);
 	}
 
@@ -47,6 +52,14 @@ public class Concurrency implements Closeable {
 
 	public void setMonitorListener(SerializableConsumer<Object> listener) {
 		this.listener = listener;
+	}
+
+	public void onBeforeExecution(Runnable action) {
+		this.beforeEachParallelExecution = action;
+	}
+
+	public void onAfterExecution(Runnable action) {
+		this.afterEachParallelExecution = action;
 	}
 
 	// ******************************************************************************************************************
@@ -74,6 +87,9 @@ public class Concurrency implements Closeable {
 		Spliterator<SOURCE> splitSources = sources.spliterator();
 		List<Future<RESULT>> mapFutures = new ArrayList<>();
 		aborted = false;
+
+		if (beforeEachParallelExecution != null)
+			beforeEachParallelExecution.run();
 
 		while (!aborted) {
 
@@ -128,11 +144,7 @@ public class Concurrency implements Closeable {
 				while (future != null) {
 					try {
 						allResults.add(future.get());
-					} catch (InterruptedException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					} catch (ExecutionException e) {
-						// TODO Auto-generated catch block
+					} catch (InterruptedException | ExecutionException e) {
 						e.printStackTrace();
 					}
 					mapFutures.remove(future);
@@ -152,59 +164,19 @@ public class Concurrency implements Closeable {
 				// allResults.size());
 				operator.result = allResults.stream().reduce(operator.result, operator.reducer);
 				allResults.clear();
-				// RESULT contrib = allResults.parallelStream().reduce(operator.initValueSupplier.get(), operator.reducer);
-				// operator.result = operator.reducer.apply(operator.result, contrib);
 			}
-			//
-			// while (f != null) {
-			//
-			// RESULT contrib = null;
-			// try {
-			// contrib = f.get();
-			// } catch (InterruptedException | ExecutionException e) {
-			// e.printStackTrace();
-			// }
-			//
-			// if (listener != null) {
-			// listener.accept(contrib);
-			// }
-			//
-			// if (contrib != null) {
-			//
-			// if (listener != null)
-			// logger.debug("Processing new results chunk for {} values, {} chunks left", chunkSize,
-			// (mapFutures.size() - 1));
-			//
-			// //
-			// // Processing each result
-			// //
-			// if (operator.reducer != null) {
-			//
-			// try {
-			// operator.result = operator.reducer.apply(operator.result, contrib);
-			// } catch (Exception e) {
-			// logger.error("Reducing task triggered an exception: {}", e.getLocalizedMessage());
-			// }
-			// }
-			// }
-			//
-			// if (listener != null) {
-			// logger.debug("Processing done, {} chunks left", (mapFutures.size() - 1));
-			// }
-			//
-			// mapFutures.remove(f);
-			// f = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
-			// }
 
 			if (!mapFutures.isEmpty()) {
 				try {
 					Thread.sleep(500);
 				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 			}
 		}
+
+		if (afterEachParallelExecution != null)
+			afterEachParallelExecution.run();
 
 		return operator.result;
 

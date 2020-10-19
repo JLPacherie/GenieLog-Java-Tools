@@ -243,7 +243,7 @@ public abstract class AParameterSet<T> implements Serializable {
 		}
 		p.setSet(this);
 		_allParams.put(p.getName(), p);
-		applyListeners(p,p.getValue());
+		//applyListeners(p,p.getValue());
 		return p;
 	}
 
