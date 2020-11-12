@@ -252,7 +252,7 @@ public abstract class AParameterSet<T> implements Serializable {
 		AParameter<T> p = _allParams.get(prevName);
 
 		if (p == null) {
-			throw new IllegalArgumentException("The parameter to rename is not in this set?");
+			throw new IllegalArgumentException("The parameter to rename is not in this set ? (while renaming " + prevName + " in " + newName);
 		}
 
 		if (isLocked(newName)) {
@@ -260,9 +260,8 @@ public abstract class AParameterSet<T> implements Serializable {
 		}
 
 		_allParams.remove(p.getName());
-		p.setName(newName);
-		applyListeners(p,p.getValue());
 		_allParams.put(newName, p);
+		applyListeners(p,p.getValue());
 	}
 	//
 	// ******************************************************************************************************************

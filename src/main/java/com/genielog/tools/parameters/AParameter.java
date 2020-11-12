@@ -120,14 +120,14 @@ public abstract class AParameter<T> implements Serializable {
 	protected abstract void doSetValue(T value);
 
 	public boolean hasValidations() {
-		return READ_WRITE.equals(mode) || 
+		return READ_WRITE.equals(mode) ||
 				((_authorizedValues != null) && !_authorizedValues.isEmpty()) ||
 				((validators != null) && !validators.isEmpty());
 	}
-	
+
 	public boolean isAuthorizedValue(T value) {
 
-		if (READ_ONLY.equals(mode) && !Objects.equals(getValue(),value)) {
+		if (READ_ONLY.equals(mode) && !Objects.equals(getValue(), value)) {
 			_logger.error("Attempting to redefine a read only parameter {} with '{}'", this, value);
 			return false;
 		}
