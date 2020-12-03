@@ -117,9 +117,29 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 	 */
 	public RESULT exec(Stream<ITEM> t) {
 		//logger.debug("{} Starting the operator on local contribution.", id);
+		
+		if (initValueSupplier == null) {
+			throw new IllegalStateException("The initial value supplier for the operator is not defined.");
+		}
+		
+		if (mapper == null) {
+			throw new IllegalStateException("The mapper for the operator is not defined.");
+		}
+
+		if (reducer == null) {
+			throw new IllegalStateException("The reducer for the operator is not defined.");
+		}
+
+		if (t == null) {
+			throw new IllegalArgumentException("The input stream for the operator is not defined.");
+		}
+
 		RESULT r = initValueSupplier.get();
-		return t.takeWhile(item -> !isAborted).filter(item -> filter == null || filter.test(item)).map(mapper).reduce(r,
-				reducer);
+		return t
+				.takeWhile(item -> !isAborted) // The operator can trigger an abort command itself
+				.filter(item -> filter == null || filter.test(item)) // The operator may define a filter
+				.map(mapper) // applies the map
+				.reduce(r,reducer); // and then the reduction
 	}
 
 }
