@@ -24,15 +24,5 @@
 			<attribute name="org.eclipse.jst.component.nondependency" value=""/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="lib" path="/home/pacherie/.m2/repository/com/google/guava/guava/25.0-jre/guava-25.0-jre.jar" sourcepath="/home/pacherie/.m2/repository/com/google/guava/guava/25.0-jre/guava-25.0-jre-sources.jar">
-		<attributes>
-			<attribute name="maven.pomderived" value="true"/>
-			<attribute name="org.eclipse.jst.component.archivename" value="guava-25.0-jre.jar"/>
-			<attribute name="maven.groupId" value="com.google.guava"/>
-			<attribute name="maven.artifactId" value="guava"/>
-			<attribute name="maven.version" value="25.0-jre"/>
-			<attribute name="maven.scope" value="compile"/>
-		</attributes>
-	</classpathentry>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>

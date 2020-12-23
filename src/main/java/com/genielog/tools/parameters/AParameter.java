@@ -21,6 +21,36 @@ public abstract class AParameter<T> implements Serializable {
 
 	protected transient Logger _logger = LogManager.getLogger(this.getClass());
 
+	public enum Permission {
+		ALL("all"),
+		VALUE_ONLY("value"),
+		READ_ONLY("read only");
+		
+		private String value;
+		
+		Permission() {
+			this("all");
+		}
+		
+		Permission(String value) {
+			this.value = value;
+		}
+		
+		public boolean canRename() {
+			return this != READ_ONLY;
+		}
+		
+		public boolean canChangeValue() {
+			return (this == VALUE_ONLY) || (this == ALL);
+		}
+		
+		@Override
+		public String toString() {
+			return value;
+		}
+
+	};
+	
 	public static final transient String READ_ONLY = "READ_ONLY";
 	public static final transient String READ_WRITE = "READ_WRITE";
 

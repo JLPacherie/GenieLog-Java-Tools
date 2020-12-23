@@ -255,7 +255,8 @@ public abstract class AParameterSet<T> implements Serializable {
 			throw new IllegalArgumentException("The parameter to rename is not in this set ? (while renaming " + prevName + " in " + newName);
 		}
 
-		if (isLocked(newName)) {
+		
+		if (!prevName.equals(newName) && isLocked(newName)) {
 			throw new IllegalArgumentException("The new name for the parameter is already defined or locked in this set.");
 		}
 
