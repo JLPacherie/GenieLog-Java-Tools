@@ -21,7 +21,7 @@
 		// Does Coverity analysis needed for this project ?
 		"enabled": true,
 		// Overweritte default version
-		"version": "2020.03"
+		"version": "last"
 	},
 
 	// **************************************************************************

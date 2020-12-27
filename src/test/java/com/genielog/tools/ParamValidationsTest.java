@@ -2,6 +2,7 @@ package com.genielog.tools;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,38 +24,14 @@ import org.junit.jupiter.api.Test;
 import com.genielog.tools.parameters.Parameter;
 import com.genielog.tools.parameters.StrParameter;
 
-class ParamValidationsTest {
-
-	protected static Logger _logger;
-
-	@BeforeAll
-	static void setUpBeforeClass() throws IOException {
-		String log4jConfigFile = "./tests/log4j2.xml";
-		InputStream streamConfig = new FileInputStream(log4jConfigFile);
-		ConfigurationSource source = new ConfigurationSource(streamConfig);
-		Configurator.initialize(null, source);
-		_logger = LogManager.getLogger(ParamValidationsTest.class);
-		streamConfig.close();
-	}
-
-	@AfterAll
-	static void tearDownAfterClass() throws Exception {
-	}
-
-	@BeforeEach
-	void setUp() throws Exception {
-	}
-
-	@AfterEach
-	void tearDown() throws Exception {
-	}
+class ParamValidationsTest extends BaseTest {
 
 	@Test
 	@Order(1)
 	void testCreate_Update_Read_Write() {
 		Parameter p1 = new StrParameter("p1", "value1", Parameter.READ_WRITE);
 
-		assertTrue(p1 != null, "Parameter not created ?");
+		assertNotNull(p1, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("value1", p1.getValue(), "Bad value.");
 
@@ -69,7 +46,7 @@ class ParamValidationsTest {
 	void testCreate_Update_Read_Only() {
 		Parameter p1 = new StrParameter("p1", "value1", Parameter.READ_ONLY);
 
-		assertTrue(p1 != null, "Parameter not created ?");
+		assertNotNull(p1, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("value1", p1.getValue(), "Bad value.");
 
@@ -84,7 +61,7 @@ class ParamValidationsTest {
 	void testCreate_Update_With_AuthorizedValues() {
 		Parameter p1 = new StrParameter("p1", "value1", Parameter.READ_WRITE);
 
-		assertTrue(p1 != null, "Parameter not created ?");
+		assertNotNull(p1 != null, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("value1", p1.getValue(), "Bad value.");
 
@@ -118,7 +95,7 @@ class ParamValidationsTest {
 	void testCreate_Update_With_Validators() {
 		Parameter p1 = new StrParameter("p1", "any thing", Parameter.READ_WRITE);
 
-		assertTrue(p1 != null, "Parameter not created ?");
+		assertNotNull(p1 != null, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("any thing", p1.getValue(), "Bad value.");
 
@@ -177,7 +154,7 @@ class ParamValidationsTest {
 	void testCreate_Update_With_Authorized_And_Validators() {
 		Parameter p1 = new StrParameter("p1", "any thing", Parameter.READ_WRITE);
 
-		assertTrue(p1 != null, "Parameter not created ?");
+		assertNotNull(p1 != null, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("any thing", p1.getValue(), "Bad value.");
 
@@ -232,7 +209,7 @@ class ParamValidationsTest {
 	void testCreate_Update_With_Authorized_And_Validators_Inverted() {
 		Parameter p1 = new StrParameter("p1", "any thing", Parameter.READ_WRITE);
 
-		assertTrue(p1 != null, "Parameter not created ?");
+		assertNotNull(p1 != null, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("any thing", p1.getValue(), "Bad value.");
 

@@ -8,17 +8,27 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 public class ZipUtils {
 
+	protected static Logger logger = LogManager.getLogger(ZipUtils.class);
+
+	private ZipUtils() {
+		
+	}
+	
 	public static boolean unzip(String fileZip, File destDir) throws IOException {
 		byte[] buffer = new byte[1024];
 		boolean result = (fileZip != null) && (destDir.canWrite());
 		if (result) {
+			FileOutputStream fos = null;
 			try (ZipInputStream zis = new ZipInputStream(new FileInputStream(fileZip))) {
 				ZipEntry zipEntry = zis.getNextEntry();
 				while (zipEntry != null) {
 					File newFile = newFile(destDir, zipEntry);
-					FileOutputStream fos = new FileOutputStream(newFile);
+					fos = new FileOutputStream(newFile);
 					int len;
 					while ((len = zis.read(buffer)) > 0) {
 						fos.write(buffer, 0, len);
@@ -29,29 +39,46 @@ public class ZipUtils {
 				zis.closeEntry();
 			} catch (IOException e) {
 				result = false;
+				if (fos != null)
+					fos.close();
 			}
 		}
 		return result;
 	}
+	
+	//
+	// ******************************************************************************************************************
+	//
 
+	/** Zip one single file. */
 	public static void zipOneFile(String sourceFile, String zipFile) throws IOException {
-		FileOutputStream fos = new FileOutputStream(zipFile);
-		ZipOutputStream zipOut = new ZipOutputStream(fos);
 		File fileToZip = new File(sourceFile);
-		FileInputStream fis = new FileInputStream(fileToZip);
-
-		ZipEntry zipEntry = new ZipEntry(fileToZip.getName());
-		zipOut.putNextEntry(zipEntry);
-		byte[] bytes = new byte[1024];
-		int length;
-		while ((length = fis.read(bytes)) >= 0) {
-			zipOut.write(bytes, 0, length);
+		if (fileToZip.exists()) {
+			try (
+					FileOutputStream fos = new FileOutputStream(zipFile);
+					ZipOutputStream zipOut = new ZipOutputStream(fos);
+					FileInputStream fis = new FileInputStream(fileToZip);) //
+			{
+				ZipEntry zipEntry = new ZipEntry(fileToZip.getName());
+				zipOut.putNextEntry(zipEntry);
+				byte[] bytes = new byte[1024];
+				int length;
+				while ((length = fis.read(bytes)) >= 0) {
+					zipOut.write(bytes, 0, length);
+				}
+			} catch (IOException e) {
+				logger.error("Exception while zipping {}: {}", sourceFile, e.getLocalizedMessage());
+			}
+		} else {
+			logger.error("Missing file to zip: '{}'", sourceFile);
 		}
-		zipOut.close();
-		fis.close();
-		fos.close();
 	}
 
+	//
+	// ******************************************************************************************************************
+	//
+
+	/** Zip a complete directory into one single zip file. */
 	public static File newFile(File destinationDir, ZipEntry zipEntry) throws IOException {
 		File destFile = new File(destinationDir, zipEntry.getName());
 
