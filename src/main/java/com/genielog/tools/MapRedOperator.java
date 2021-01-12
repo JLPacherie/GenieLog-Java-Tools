@@ -74,6 +74,21 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 
 	}
 
+	public static <ITEM, TARGET> MapRedOperator<ITEM, List<TARGET>> maper(String id,
+																																	SerializablePredicate<ITEM> filter,
+																																	SerializableFunction<ITEM, TARGET> mapper) {
+		return new MapRedOperator<>(id, filter,
+				(ITEM item) -> {
+					return List.of(mapper.apply(item));
+				},
+				(prev, contrib) -> {
+					prev.addAll(contrib);
+					return prev;
+				},
+				ArrayList<TARGET>::new);
+
+	}
+
 	public MapRedOperator(String id) {
 		logger = LogManager.getLogger(this.getClass());
 		this.id = id;
@@ -106,7 +121,7 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 	}
 
 	public void abort() {
-		//logger.debug("{} Execution aborted.", id);
+		// logger.debug("{} Execution aborted.", id);
 		isAborted = true;
 	}
 
@@ -116,12 +131,12 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 	 * 
 	 */
 	public RESULT exec(Stream<ITEM> t) {
-		//logger.debug("{} Starting the operator on local contribution.", id);
-		
+		// logger.debug("{} Starting the operator on local contribution.", id);
+
 		if (initValueSupplier == null) {
 			throw new IllegalStateException("The initial value supplier for the operator is not defined.");
 		}
-		
+
 		if (mapper == null) {
 			throw new IllegalStateException("The mapper for the operator is not defined.");
 		}
@@ -139,7 +154,7 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 				.takeWhile(item -> !isAborted) // The operator can trigger an abort command itself
 				.filter(item -> filter == null || filter.test(item)) // The operator may define a filter
 				.map(mapper) // applies the map
-				.reduce(r,reducer); // and then the reduction
+				.reduce(r, reducer); // and then the reduction
 	}
 
 }
