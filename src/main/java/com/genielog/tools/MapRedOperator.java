@@ -19,6 +19,8 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 	protected Logger logger = null;
 
 	private static final long serialVersionUID = 6416474010519151325L;
+	private volatile boolean isAborted = false;
+
 
 	public String id;
 	// The filter is used to control on which items the operator will actually be executed.
@@ -78,9 +80,7 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 																																	SerializablePredicate<ITEM> filter,
 																																	SerializableFunction<ITEM, TARGET> mapper) {
 		return new MapRedOperator<>(id, filter,
-				(ITEM item) -> {
-					return List.of(mapper.apply(item));
-				},
+				(ITEM item) -> List.of(mapper.apply(item)),
 				(prev, contrib) -> {
 					prev.addAll(contrib);
 					return prev;
@@ -114,8 +114,6 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 		isAborted = false;
 	}
 
-	private volatile boolean isAborted = false;
-
 	public boolean isAborted() {
 		return isAborted;
 	}
@@ -128,7 +126,6 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 	/**
 	 * Execute the operator on a sequence of source items and generate the result for this source. This method aims at
 	 * being executed in each concurrent thread.
-	 * 
 	 */
 	public RESULT exec(Stream<? extends ITEM> t) {
 		// logger.debug("{} Starting the operator on local contribution.", id);
