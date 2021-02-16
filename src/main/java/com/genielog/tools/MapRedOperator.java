@@ -130,7 +130,7 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 	 * being executed in each concurrent thread.
 	 * 
 	 */
-	public RESULT exec(Stream<ITEM> t) {
+	public RESULT exec(Stream<? extends ITEM> t) {
 		// logger.debug("{} Starting the operator on local contribution.", id);
 
 		if (initValueSupplier == null) {
