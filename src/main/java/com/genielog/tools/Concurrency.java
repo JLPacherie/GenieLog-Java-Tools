@@ -2,15 +2,16 @@ package com.genielog.tools;
 
 import java.io.Closeable;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Spliterator;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
@@ -25,6 +26,7 @@ public class Concurrency implements Closeable {
 	ThreadFactory namedThreadFactory;
 	int startDelay = 0;
 	String name;
+	
 	public static final Concurrency instance = new Concurrency("shared",
 			Integer.max(2, Runtime.getRuntime().availableProcessors() - 2));
 
@@ -66,6 +68,15 @@ public class Concurrency implements Closeable {
 	// Parallel Map + Sequential Reduce
 	// ******************************************************************************************************************
 
+	public <RESULT> Callable<RESULT> buildWork(Supplier<RESULT> supplier) {
+		return new Callable<>() {
+			@Override
+			public RESULT call() throws Exception {
+				return supplier.get();
+			}
+		};
+	}
+	
 	public <SOURCE, RESULT> RESULT parallel(Stream<SOURCE> sources,
 																					int chunkSize,
 																					MapRedOperator<SOURCE, RESULT> operator) {
@@ -108,13 +119,17 @@ public class Concurrency implements Closeable {
 			if (listener != null)
 				logger.debug("Starting a new chunk for {} entries", chunk.size());
 
-			mapFutures.add(CompletableFuture.supplyAsync(() -> {
+			Callable<RESULT> work = buildWork(() -> {
 				Thread.currentThread().setName(name + "-" + operator.id + "-" + mapFutures.size());
 				RESULT result = operator.exec(chunk.stream());
 				Thread.currentThread().setName(name + "-waiting-" + mapFutures.size());
 				return result;
-			}, executor));
-
+			});
+			
+			Future<RESULT> future = executor.submit(work);
+			
+			mapFutures.add(future);
+			
 			try {
 				Thread.sleep(startDelay);
 			} catch (InterruptedException e) {
