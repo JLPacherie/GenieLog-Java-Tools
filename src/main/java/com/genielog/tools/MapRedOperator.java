@@ -62,7 +62,7 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 		return result;
 	}
 
-	/** Build a Map operator that wull return the number of unfiltered items processed with the mapper. */
+	/** Build a Map operator that will return the number of unfiltered items processed with the mapper. */
 	public static <ITEM> MapRedOperator<ITEM, Integer> forEach(	String id,
 																															SerializablePredicate<ITEM> filter,
 																															SerializableConsumer<ITEM> mapper) {
@@ -146,6 +146,7 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 			throw new IllegalArgumentException("The input stream for the operator is not defined.");
 		}
 
+		isAborted = false;
 		RESULT r = initValueSupplier.get();
 		return t
 				.takeWhile(item -> !isAborted) // The operator can trigger an abort command itself

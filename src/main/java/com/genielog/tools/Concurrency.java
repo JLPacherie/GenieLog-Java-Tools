@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Spliterator;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -26,7 +25,7 @@ public class Concurrency implements Closeable {
 	ThreadFactory namedThreadFactory;
 	int startDelay = 0;
 	String name;
-	
+
 	public static final Concurrency instance = new Concurrency("shared",
 			Integer.max(2, Runtime.getRuntime().availableProcessors() - 2));
 
@@ -76,7 +75,7 @@ public class Concurrency implements Closeable {
 			}
 		};
 	}
-	
+
 	public <SOURCE, RESULT> RESULT parallel(Stream<SOURCE> sources,
 																					int chunkSize,
 																					MapRedOperator<SOURCE, RESULT> operator) {
@@ -125,11 +124,11 @@ public class Concurrency implements Closeable {
 				Thread.currentThread().setName(name + "-waiting-" + mapFutures.size());
 				return result;
 			});
-			
+
 			Future<RESULT> future = executor.submit(work);
-			
+
 			mapFutures.add(future);
-			
+
 			try {
 				Thread.sleep(startDelay);
 			} catch (InterruptedException e) {
@@ -146,49 +145,47 @@ public class Concurrency implements Closeable {
 
 		operator.result = operator.initValueSupplier.get();
 
-		// This is the minimum number of result to process in a parallel reduction
-		int minNbFutures = 1000;
+		long delay = System.currentTimeMillis();
 
-		// This is the list of results to process in a parallel reduction
-		List<RESULT> allResults = new ArrayList<>();
+		while (!mapFutures.isEmpty() && !aborted()) {
 
-		while (!mapFutures.isEmpty()) {
-
-			while (!mapFutures.isEmpty() && (allResults.size() < minNbFutures)) {
+			while (!mapFutures.isEmpty()) {
 				Future<RESULT> future = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
 				while (future != null) {
 					try {
-						allResults.add(future.get());
+						operator.result = operator.reducer.apply(operator.result, future.get());
 					} catch (InterruptedException | ExecutionException e) {
+						logger.error(" Concurrent execution aborted, because {}", e.getLocalizedMessage());
+						abort();
 						e.printStackTrace();
 					}
 					mapFutures.remove(future);
 					future = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
 				}
+
+				// Reset
+				delay = System.currentTimeMillis();
 			}
 
-			if (allResults.size() < minNbFutures) {
-				// logger.debug("There are still not enough results ({}) to proceed with a parallel reduction.",
-				// allResults.size());
-				if (mapFutures.isEmpty()) {
-					operator.result = allResults.stream().reduce(operator.result, operator.reducer);
-					allResults.clear();
-				}
-			} else {
-				// logger.debug("Can't execute a parallel reduction on {} results if reducer modify its result",
-				// allResults.size());
-				operator.result = allResults.stream().reduce(operator.result, operator.reducer);
-				allResults.clear();
-			}
-
-			if (!mapFutures.isEmpty()) {
-				try {
-					Thread.sleep(500);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+			if (mapFutures.isEmpty()) {
+				// Time spent waiting since last time a result was produced.
+				long elapsed = System.currentTimeMillis() - delay;
+				long timeout = 10 * 60 * 1000L; // 10 min
+				if (elapsed >= timeout) {
+					logger.error("Aborting because of timed out after {} mins",elapsed / (1000*60));
+					abort();
+				} else {
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
 				}
 			}
 		}
+
+		// Force shuting down in case of abort
+		executor.shutdownNow();
 
 		if (afterEachParallelExecution != null)
 			afterEachParallelExecution.run();
