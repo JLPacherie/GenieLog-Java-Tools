@@ -18,34 +18,29 @@ import org.apache.logging.log4j.Logger;
 
 import com.genielog.tools.functional.SerializableConsumer;
 
-public class Concurrency implements Closeable {
+public class Concurrency {
 
-	Logger logger = LogManager.getLogger(Concurrency.class);
-	protected ExecutorService executor = null;
-	ThreadFactory namedThreadFactory;
-	int startDelay = 0;
-	String name;
-
-	public static final Concurrency instance = new Concurrency("shared",
-			Integer.max(2, Runtime.getRuntime().availableProcessors() - 2));
-
+	protected Logger logger = LogManager.getLogger(Concurrency.class);
+	protected ThreadFactory namedThreadFactory;
+	protected int startDelay = 0;
+	protected String name;
+	
+	// Max delay between two consecutives thread termination
+	protected long executionTimeoutMilliSec = 1 * 60 * 1000L; // 1 min
+	
 	private Runnable beforeEachParallelExecution;
 	private Runnable afterEachParallelExecution;
-
+	private int nbThreads = -1;
+	
 	public Concurrency(String name, int nbThreads) {
 		this.name = name;
 		this.beforeEachParallelExecution = null;
 		this.afterEachParallelExecution = null;
-		executor = Executors.newFixedThreadPool(nbThreads);
+		this.nbThreads = nbThreads;
 	}
 
 	public void setStartDelay(int delay) {
 		startDelay = delay;
-	}
-
-	@Override
-	public void close() {
-		executor.shutdown();
 	}
 
 	// This is the listener that, when defined, will be triggered after each mapper execution
@@ -76,6 +71,7 @@ public class Concurrency implements Closeable {
 		};
 	}
 
+	/** Executes an operator on the given source item. The Map part is executed in parallel. */
 	public <SOURCE, RESULT> RESULT parallel(Stream<SOURCE> sources,
 																					int chunkSize,
 																					MapRedOperator<SOURCE, RESULT> operator) {
@@ -91,6 +87,12 @@ public class Concurrency implements Closeable {
 		if (operator.reducer == null) {
 			throw new IllegalArgumentException("Concurrent reducer of operator not defined.");
 		}
+
+		if ( nbThreads <= 0) {
+			nbThreads = Integer.max(2, Runtime.getRuntime().availableProcessors() - 2);
+		}
+		
+		ExecutorService executor = Executors.newFixedThreadPool(nbThreads);
 
 		operator.init();
 
@@ -143,37 +145,42 @@ public class Concurrency implements Closeable {
 		// Reduction
 		//
 
-		operator.result = operator.initValueSupplier.get();
+		RESULT result = operator.initValueSupplier.get();
 
 		long delay = System.currentTimeMillis();
 
-		while (!mapFutures.isEmpty() && !aborted()) {
+		//
+		// While all theads are not terminated, or the execution aborted.
+		//
+		while (!mapFutures.isEmpty() && !aborted() && !operator.isAborted()) {
 
-			while (!mapFutures.isEmpty()) {
-				Future<RESULT> future = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
-				while (future != null) {
-					try {
-						operator.result = operator.reducer.apply(operator.result, future.get());
-					} catch (InterruptedException | ExecutionException e) {
-						logger.error(" Concurrent execution aborted, because {}", e.getLocalizedMessage());
-						abort();
-						e.printStackTrace();
-					}
-					mapFutures.remove(future);
-					future = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
+			// Fetch all available results from a thread.
+			Future<RESULT> future = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
+
+			if (future != null) {
+				try {
+					result = operator.reducer.apply(result, future.get());
+				} catch (InterruptedException | ExecutionException e) {
+					logger.error(" Concurrent execution aborted, because {}", e.getLocalizedMessage());
+					abort();
+					e.printStackTrace();
 				}
+				mapFutures.remove(future);
+				future = mapFutures.stream().filter(Future::isDone).findFirst().orElse(null);
 
 				// Reset
 				delay = System.currentTimeMillis();
-			}
-
-			if (mapFutures.isEmpty()) {
-				// Time spent waiting since last time a result was produced.
+			} else {
+				//
+				// Check that we don't reach the timeout of unavailable result
+				//
 				long elapsed = System.currentTimeMillis() - delay;
-				long timeout = 10 * 60 * 1000L; // 10 min
-				if (elapsed >= timeout) {
-					logger.error("Aborting because of timed out after {} mins",elapsed / (1000*60));
+				if (elapsed >= executionTimeoutMilliSec) {
+					logger.error("{}, Aborting because of timed out after {} mins", operator.id, elapsed / (1000 * 60));
+					operator.abort();
 					abort();
+					// Reset current results
+					result = operator.initValueSupplier.get();
 				} else {
 					try {
 						Thread.sleep(500);
@@ -182,6 +189,7 @@ public class Concurrency implements Closeable {
 					}
 				}
 			}
+
 		}
 
 		// Force shuting down in case of abort
@@ -190,7 +198,18 @@ public class Concurrency implements Closeable {
 		if (afterEachParallelExecution != null)
 			afterEachParallelExecution.run();
 
-		return operator.result;
+
+		if (!mapFutures.isEmpty() && aborted()) {
+			logger.warn("*******************************************************");
+			logger.warn("Concurrent execution terminated before finished.");
+			logger.warn("   Executor : {} ({})", name, aborted ? "aborted" : "not aborted");
+			logger.warn("   Operator : {} ({})", operator.id, operator.isAborted() ? "aborted" : "not aborted");
+			logger.warn("   Nb not terminated tasks {}", mapFutures.size());
+			logger.warn("*******************************************************");
+			throw new IllegalStateException("Concurrent execution timed out, waiting for a task for more than " + executionTimeoutMilliSec / 1000 + " secs");
+		}
+
+		return result;
 
 	}
 

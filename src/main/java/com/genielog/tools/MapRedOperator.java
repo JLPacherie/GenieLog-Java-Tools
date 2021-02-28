@@ -16,13 +16,14 @@ import com.genielog.tools.functional.SerializableSupplier;
 
 public class MapRedOperator<ITEM, RESULT> implements Serializable {
 
-	protected Logger logger = null;
+	protected transient Logger logger = null;
 
 	private static final long serialVersionUID = 6416474010519151325L;
 	private volatile boolean isAborted = false;
 
 
 	public String id;
+	
 	// The filter is used to control on which items the operator will actually be executed.
 	public SerializablePredicate<ITEM> filter;
 
@@ -34,16 +35,17 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 
 	public SerializableSupplier<RESULT> initValueSupplier;
 
-	public RESULT result;
-
 	/** Build an operator to search for the first item in a sequence matching the given predicate. */
 	public static <ITEM> MapRedOperator<ITEM, ITEM> findAny(SerializablePredicate<ITEM> finder) {
 		MapRedOperator<ITEM, ITEM> result = new MapRedOperator<>("findAny");
 		result.filter = (ITEM item) -> finder.test(item);
 		result.mapper = (ITEM item) -> item;
 		result.reducer = (ITEM prev, ITEM contrib) -> {
-			result.abort();
-			return contrib;
+			ITEM matched = prev != null ? prev : contrib;
+			if (matched != null) {
+				result.abort();
+			}
+			return matched;
 		};
 		result.initValueSupplier = () -> null;
 		return result;
@@ -58,7 +60,7 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 			prev.addAll(contrib);
 			return prev;
 		};
-		result.initValueSupplier = () -> new ArrayList<>();
+		result.initValueSupplier = ArrayList::new;
 		return result;
 	}
 
@@ -89,8 +91,13 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 
 	}
 
-	public MapRedOperator(String id) {
+	
+	public MapRedOperator() {
 		logger = LogManager.getLogger(this.getClass());
+	}
+
+	public MapRedOperator(String id) {
+		this();
 		this.id = id;
 	}
 
@@ -106,20 +113,22 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 		this.initValueSupplier = initValueSupplier;
 	}
 
+	public MapRedOperator(MapRedOperator<ITEM,RESULT> other) {
+		this(other.id,other.filter,other.mapper,other.reducer,other.initValueSupplier);
+	}
 	//
 	//
 	//
 	public void init() {
-		result = initValueSupplier.get();
 		isAborted = false;
 	}
 
-	public boolean isAborted() {
+	public synchronized boolean isAborted() {
 		return isAborted;
 	}
 
-	public void abort() {
-		// logger.debug("{} Execution aborted.", id);
+	public synchronized void abort() {
+		//logger.debug("{} Execution aborted from thread {}", id,Thread.currentThread().getName());
 		isAborted = true;
 	}
 
@@ -146,7 +155,8 @@ public class MapRedOperator<ITEM, RESULT> implements Serializable {
 			throw new IllegalArgumentException("The input stream for the operator is not defined.");
 		}
 
-		isAborted = false;
+		// NO The operator is executed in Concurrent, each thread may change isAborted
+		// isAborted = false;
 		RESULT r = initValueSupplier.get();
 		return t
 				.takeWhile(item -> !isAborted) // The operator can trigger an abort command itself

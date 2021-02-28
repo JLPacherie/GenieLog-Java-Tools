@@ -71,7 +71,7 @@ class MapRedTests extends BaseTest {
 	void testMultiThreaded() {
 		int allSizes[] = new int[] { 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 };
 
-		Concurrency executor = Concurrency.instance;
+		Concurrency executor = new Concurrency("test",-1);
 
 		for (int size : allSizes) {
 
@@ -154,7 +154,6 @@ class MapRedTests extends BaseTest {
 
 		}
 
-		executor.close();
 
 	}
 }
