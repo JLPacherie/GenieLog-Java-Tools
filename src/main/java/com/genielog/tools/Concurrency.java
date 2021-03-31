@@ -26,7 +26,7 @@ public class Concurrency {
 	protected String name;
 	
 	// Max delay between two consecutives thread termination
-	protected long executionTimeoutMilliSec = 1 * 60 * 1000L; // 1 min
+	protected long executionTimeoutMilliSec = 5 * 60 * 1000L; // 1 min
 	
 	private Runnable beforeEachParallelExecution;
 	private Runnable afterEachParallelExecution;
