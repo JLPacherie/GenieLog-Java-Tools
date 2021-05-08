@@ -1,5 +1,6 @@
 package com.genielog.tools;
 
+import java.io.File;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
 import java.text.ParseException;
@@ -50,6 +51,14 @@ public class Tools {
 			}
 		}
 		return result;
+	}
+	
+	public static String getPathnameDir(String pathname) {
+		int pos = pathname.lastIndexOf(File.separatorChar);
+		if (pos > 0) {
+			return pathname.substring(0,pos);
+		}
+		return File.separator;
 	}
 	
 	// ******************************************************************************************************************
@@ -303,8 +312,8 @@ public class Tools {
 		// TODO How to test two sequences when one or both can be null ?
 		int c = -1;
 		if ((s1 != null) && (s2 != null)) {
-			List<String> l1 = s1.map(t -> getLabel.apply(t)).sorted().collect(Collectors.toList());
-			List<String> l2 = s2.map(t -> getLabel.apply(t)).sorted().collect(Collectors.toList());
+			List<String> l1 = s1.map(getLabel).sorted().collect(Collectors.toList());
+			List<String> l2 = s2.map(getLabel).sorted().collect(Collectors.toList());
 			int index = 0;
 			while ((index < l1.size()) && (index < l2.size())) {
 				c = l1.get(index).compareTo(l2.get(index));
@@ -349,5 +358,7 @@ public class Tools {
 			}
 		});
 	}
+
+	
 	
 }
