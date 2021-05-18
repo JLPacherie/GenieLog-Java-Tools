@@ -56,7 +56,7 @@ public class Tools {
 	public static String getPathnameDir(String pathname) {
 		int pos = pathname.lastIndexOf(File.separatorChar);
 		if (pos > 0) {
-			return pathname.substring(0,pos);
+			return pathname.substring(0,pos+1);
 		}
 		return File.separator;
 	}
