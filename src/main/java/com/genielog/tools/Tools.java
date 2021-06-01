@@ -1,6 +1,7 @@
 package com.genielog.tools;
 
 import java.io.File;
+import java.lang.reflect.Array;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
 import java.text.ParseException;
@@ -23,6 +24,8 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import org.javatuples.Pair;
 
 /**
  * This class collects utility methods that might be used in several places around the code. These utilities are
@@ -61,6 +64,26 @@ public class Tools {
 		return File.separator;
 	}
 	
+	public static <T> Pair<T[],T[]> getSharedParts(T[] s1, T[] s2) {
+		List<T> sharedPrefix = new ArrayList<>();
+		List<T> sharedSuffix = new ArrayList<>();
+		
+		int pos = 0;
+		while ( (pos < Math.min(s1.length,s2.length)) && s1[pos].equals(s2[pos])) {
+			sharedPrefix.add(s1[pos]);
+			pos ++;
+		}
+		
+		int pos1 = s1.length - 1;
+		int pos2 = s2.length - 1;
+		while ( (pos1 * pos2 > 0) && (s1[pos1].equals(s2[pos2]))) {
+			sharedSuffix.add(0,s1[pos1]);
+			pos1--;
+			pos2--;
+		}
+
+		return Pair.with((T[]) sharedPrefix.toArray(),(T[])sharedSuffix.toArray());
+	}
 	// ******************************************************************************************************************
 	// Number to String formatting
 	// ******************************************************************************************************************
