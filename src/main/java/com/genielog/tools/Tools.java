@@ -1,7 +1,6 @@
 package com.genielog.tools;
 
 import java.io.File;
-import java.lang.reflect.Array;
 import java.text.DateFormat;
 import java.text.DecimalFormat;
 import java.text.ParseException;
@@ -14,16 +13,22 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.TimeZone;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import org.javatuples.Pair;
 
@@ -62,6 +67,48 @@ public class Tools {
 			return pathname.substring(0,pos+1);
 		}
 		return File.separator;
+	}
+	
+	/** There's a regular implementation for this in Guava */
+	public static<A, B, C> Stream<C> zip(Stream<? extends A> a,
+	                                     Stream<? extends B> b,
+	                                     BiFunction<? super A, ? super B, ? extends C> zipper) {
+	    Objects.requireNonNull(zipper);
+	    Spliterator<? extends A> aSpliterator = Objects.requireNonNull(a).spliterator();
+	    Spliterator<? extends B> bSpliterator = Objects.requireNonNull(b).spliterator();
+
+	    // Zipping looses DISTINCT and SORTED characteristics
+	    int characteristics = aSpliterator.characteristics() & bSpliterator.characteristics() &
+	            ~(Spliterator.DISTINCT | Spliterator.SORTED);
+
+	    long zipSize = ((characteristics & Spliterator.SIZED) != 0)
+	            ? Math.min(aSpliterator.getExactSizeIfKnown(), bSpliterator.getExactSizeIfKnown())
+	            : -1;
+
+	    Iterator<A> aIterator = Spliterators.iterator(aSpliterator);
+	    Iterator<B> bIterator = Spliterators.iterator(bSpliterator);
+	    Iterator<C> cIterator = new Iterator<C>() {
+	        @Override
+	        public boolean hasNext() {
+	            return aIterator.hasNext() && bIterator.hasNext();
+	        }
+
+	        @Override
+	        public C next() {
+	            return zipper.apply(aIterator.next(), bIterator.next());
+	        }
+	    };
+
+	    Spliterator<C> split = Spliterators.spliterator(cIterator, zipSize, characteristics);
+	    return (a.isParallel() || b.isParallel())
+	           ? StreamSupport.stream(split, true)
+	           : StreamSupport.stream(split, false);
+	}
+	
+	public static <T> Stream<T> samePrefixes(Stream<? extends T> a, Stream<? extends T> b) {
+		return zip(a,b, (left,right) -> Pair.with(a,b))
+						.takeWhile(pair-> Objects.equals(pair.getValue0(),pair.getValue1()))
+						.map(pair -> (T) pair.getValue0());
 	}
 	
 	public static <T> Pair<T[],T[]> getSharedParts(T[] s1, T[] s2) {
