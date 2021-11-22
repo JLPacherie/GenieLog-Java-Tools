@@ -208,12 +208,17 @@ public abstract class AParameterSet<T> implements Serializable {
 			}
 		} else {
 			p = makeParameter();
-			p.setValue(value);
-			p.setName(name);
-			p.setMode(mode);
-			p.setSet(this);
-			_allParams.put(name, p);
-			applyListeners(p, value);
+			if (p != null) {
+				p.setValue(value);
+				p.setName(name);
+				p.setMode(mode);
+				p.setSet(this);
+				_allParams.put(name, p);
+				applyListeners(p, value);
+			} else {
+				_logger.error("Can't create a new Parameter when adding {} ", name);
+				throw new IllegalStateException("Can't create a new Parameter when adding " + name);
+			}
 		}
 		return p;
 	}
@@ -223,12 +228,12 @@ public abstract class AParameterSet<T> implements Serializable {
 	//
 
 	public void add(AParameterSet<T> other, boolean incParents) {
-		other.parameters(incParents).forEach( (AParameter<T> param) -> {
+		other.parameters(incParents).forEach((AParameter<T> param) -> {
 			String name = param.getName();
 			if (has(name)) {
-				set(name,param.getValue());
+				set(name, param.getValue());
 			} else {
-				add(name,param.getValue(),param.getMode());
+				add(name, param.getValue(), param.getMode());
 			}
 		});
 	}
@@ -243,7 +248,7 @@ public abstract class AParameterSet<T> implements Serializable {
 		}
 		p.setSet(this);
 		_allParams.put(p.getName(), p);
-		//applyListeners(p,p.getValue());
+		// applyListeners(p,p.getValue());
 		return p;
 	}
 
@@ -252,17 +257,17 @@ public abstract class AParameterSet<T> implements Serializable {
 		AParameter<T> p = _allParams.get(prevName);
 
 		if (p == null) {
-			throw new IllegalArgumentException("The parameter to rename is not in this set ? (while renaming " + prevName + " in " + newName);
+			throw new IllegalArgumentException(
+					"The parameter to rename is not in this set ? (while renaming " + prevName + " in " + newName);
 		}
 
-		
 		if (!prevName.equals(newName) && isLocked(newName)) {
 			throw new IllegalArgumentException("The new name for the parameter is already defined or locked in this set.");
 		}
 
 		_allParams.remove(p.getName());
 		_allParams.put(newName, p);
-		applyListeners(p,p.getValue());
+		applyListeners(p, p.getValue());
 	}
 	//
 	// ******************************************************************************************************************
@@ -338,7 +343,7 @@ public abstract class AParameterSet<T> implements Serializable {
 
 	public void addParent(AParameterSet<T> other) {
 		if (hasParent(other)) {
-			//_logger.error("Duplicate parent detected");
+			// _logger.error("Duplicate parent detected");
 			return;
 		}
 		if ((other == this) || other.hasParent(this)) {

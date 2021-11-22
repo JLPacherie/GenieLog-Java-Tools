@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.genielog.tools.json.Utils;
 
 class JsonTests extends BaseTest {
 
@@ -22,15 +21,15 @@ class JsonTests extends BaseTest {
 				+ "  }"
 				+ "}";
 		
-		JsonNode node = Utils.getJsonNodeFromText(jsonText);
+		JsonNode node = JsonUtils.getJsonNodeFromText(jsonText);
 		assertNotNull(node,"Unbale to parse");
-		assertEquals("value1",Utils.getFieldAsText(node,"name1","",null));
+		assertEquals("value1",JsonUtils.getFieldAsText(node,"name1","",null));
 
-		assertEquals(null,Utils.getFieldAsText(node,"missing",null,null));
-		assertEquals(null,Utils.getFieldAsText(node,".missing",null,null));
+		assertEquals(null,JsonUtils.getFieldAsText(node,"missing",null,null));
+		assertEquals(null,JsonUtils.getFieldAsText(node,".missing",null,null));
 		
-		assertEquals("value1",Utils.getFieldAsText(node,".name1","",null));
-		assertEquals("value2",Utils.getFieldAsText(node,".child1.name1","",null));
-		assertEquals(null,Utils.getFieldAsText(node,".child1.missing",null,null));
+		assertEquals("value1",JsonUtils.getFieldAsText(node,".name1","",null));
+		assertEquals("value2",JsonUtils.getFieldAsText(node,".child1.name1","",null));
+		assertEquals(null,JsonUtils.getFieldAsText(node,".child1.missing",null,null));
 	}
 }

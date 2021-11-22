@@ -1,4 +1,4 @@
-package com.genielog.tools.json;
+package com.genielog.tools;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,11 +11,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class Utils {
+public class JsonUtils {
 
 	private static ObjectMapper sMapper = null;
 
-	private Utils() {
+	private JsonUtils() {
 
 	}
 
@@ -28,6 +28,7 @@ public class Utils {
 		return sMapper;
 	}
 
+	/** Returns the child node identified by a path like .parent1.paretn2.node */
 	public static JsonNode getJsonByPath(JsonNode parent, String path) {
 
 		int s = 0;
@@ -111,7 +112,7 @@ public class Utils {
 		return result;
 	}
 
-	static public JsonNode getJsonNodeFromFile(String pathname) {
+	public static JsonNode getJsonNodeFromFile(String pathname) {
 		try {
 			File file = new File(pathname);
 			if (file.isFile()) {
@@ -123,7 +124,7 @@ public class Utils {
 		return null;
 	}
 
-	static public JsonNode getJsonNodeFromText(String text) {
+	public static JsonNode getJsonNodeFromText(String text) {
 		try {
 			return getObjectMapper().readTree(text);
 		} catch (IOException e) {
