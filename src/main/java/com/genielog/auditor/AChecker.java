@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.genielog.tools.Chrono;
@@ -21,14 +22,26 @@ import com.genielog.tools.JsonUtils;
 import com.genielog.tools.Tools;
 import com.genielog.tools.parameters.AttributeWrapper;
 
+/**
+ * A class for implementing a Checker. <br>
+ * For using a checker:
+ * <ul>
+ * <li>The engine initializes the checker calling init(config)
+ * <li>Only checkers with a return 'true' value for init() and and a isValid() will be used
+ * <li>Call check() and get the generated defect from the resulting stream
+ * </ul>
+ * 
+ * @author pacherie
+ *
+ * @param <S>
+ *          The type of the Subject the checker applies to
+ * @param <D>
+ *          The type of the Defect the checker generates
+ */
 @JsonPropertyOrder({
-	"class-name","name","version","description"
+		"class-name", "name", "version", "description"
 })
 public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper implements Serializable {
-
-	public static final String NAME = "name";
-	public static final String DESCRIPTION = "description";
-	public static final String VERSION = "version";
 
 	private static final long serialVersionUID = -7061448365081429765L;
 
@@ -50,7 +63,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 
 	@JsonIgnore
 	public AtomicLong _nbCheckedSubjects = new AtomicLong();
-	
+
 	@JsonIgnore
 	public Chrono _checksDuration = new Chrono();
 	//
@@ -67,12 +80,16 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 		return getName();
 	}
 
+	//
+	// ******************************************************************************************************************
+	//
+
 	public String getVersion() {
-		return _version; //(String) get(VERSION);
+		return _version;
 	}
 
 	public void setVersion(String value) {
-		_version = value; //set(VERSION, value);
+		_version = value;
 	}
 
 	//
@@ -80,11 +97,11 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 	//
 
 	public String getName() {
-		return _name; // (String) get(NAME);
+		return _name;
 	}
 
 	public void setName(String value) {
-		_name = value; //set(NAME, value);
+		_name = value;
 	}
 
 	//
@@ -92,11 +109,11 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 	//
 
 	public String getDescription() {
-		return _description; //(String) get(DESCRIPTION);
+		return _parameters.process(_description);
 	}
 
 	public void setDescription(String value) {
-		_description = value; //(DESCRIPTION, value);
+		_description = value;
 	}
 
 	// ******************************************************************************************************************
@@ -108,6 +125,10 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 		return getVersion().startsWith("Checker ");
 	}
 
+	/** Each concrete checker should produce the subject it applies to from the configuration object. */
+	public abstract Stream<? extends S> getSubjects();
+
+	/** Only subjects for which this methid returns true will be actually checked. */
 	public abstract boolean isValidSubject(S subject);
 
 	/** Initialize the checker from the global configuration */
@@ -122,8 +143,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 	/** Executed once after all sujbects are checked. */
 	public abstract boolean tearDown();
 
-	/** Generates the list of subjects from the current confoguration. */
-	public abstract Stream<? extends S> getSubjects();
+	protected abstract D doCheck(S subject);
 
 	/** Execute the verification of the subject if it is valid and generate a defect if necessary or null */
 	public final Stream<D> check() {
@@ -134,10 +154,10 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 		}
 
 		_nbCheckedSubjects.set(0);
-		
+
 		return subjects
 				.filter(this::isValidSubject)
-				.map( (S subject) -> {
+				.map((S subject) -> {
 					_nbCheckedSubjects.incrementAndGet();
 					D defect = null;
 					try {
@@ -145,7 +165,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 						defect = this.doCheck(subject);
 						_checksDuration.pause();
 					} catch (Exception e) {
-						_logger.error("Checker {} failed on {} because of {}",this,subject,Tools.getExceptionMessages(e));
+						_logger.error("Checker {} failed on {} because of {}", this, subject, Tools.getExceptionMessages(e));
 						e.printStackTrace();
 					}
 					return defect;
@@ -162,17 +182,15 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 	public Chrono getDuration() {
 		return _checksDuration;
 	}
-	
+
 	public double getAvgDuration() {
-		return  (double) _checksDuration.elapsed() / _nbCheckedSubjects.get();
+		return (double) _checksDuration.elapsed() / _nbCheckedSubjects.get();
 	}
-	
+
 	/** Returns the number of subjects checked per seconds */
 	public double getChecksPerSeconds() {
 		return 1000. * _nbCheckedSubjects.get() / _checksDuration.elapsed();
 	}
-	
-	protected abstract D doCheck(S subject);
 
 	// ******************************************************************************************************************
 	// Persistence
@@ -188,7 +206,6 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 			} catch (IOException e) {
 				_logger.error("Unable to deserialize JSON : {}", Tools.getExceptionMessages(e));
 				_logger.error("While parsing JSON : {}", root);
-
 				e.printStackTrace();
 			}
 		}
@@ -206,7 +223,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 			}
 
 		}
-		return load(node);
+		return (node != null) && load(node);
 	}
 
 	/** Loads the JSON specification of the checker from an file pathname. */
@@ -218,7 +235,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 				result = load(JsonUtils.getJsonNodeFromFile(filename));
 			} else {
 				result = false;
-				_logger.error("Checker file not found at: '{}'", filename);
+				_logger.error("Checker configuration file not found at: '{}'", filename);
 			}
 		}
 		return result;

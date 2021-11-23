@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 public class JsonUtils {
 
@@ -24,6 +25,7 @@ public class JsonUtils {
 			sMapper = new ObjectMapper();
 			sMapper.configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true);
 			sMapper.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
+			sMapper.enable(SerializationFeature.INDENT_OUTPUT);
 		}
 		return sMapper;
 	}

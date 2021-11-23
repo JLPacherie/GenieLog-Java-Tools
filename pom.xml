@@ -5,9 +5,41 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.genielog</groupId>
-	<artifactId>com.genielog.tools</artifactId>
+	<artifactId>java-tools</artifactId>
 	<version>1.0-SNAPSHOT</version>
 	<packaging>jar</packaging>
+
+
+	<name>GenieLog Java Tools</name>
+	<description>A Colelction of Java components for open sourced software</description>
+	<url>https://github.com/JLPacherie/GenieLog-Java-Tools</url>
+
+	<organization>
+		<name>GenieLog.com</name>
+		<url>https://www.genielog.com</url>
+	</organization>
+
+	<licenses>
+		<license>
+			<name>Apache License, Version 2.0</name>
+			<url>https://www.apache.org/licenses/LICENSE-2.0</url>
+		</license>
+	</licenses>
+
+	<scm>
+		<url>https://github.com/JLPacherie/GenieLog-Java-Tools</url>
+		<connection>scm:git:git://github.com/JLPacherie/GenieLog-Java-Tools.git</connection>
+		<developerConnection>scm:git:git@github.com:JLPacherie/GenieLog-Java-Tools.git</developerConnection>
+	</scm>
+
+	<developers>
+		<developer>
+			<name>Jean-Lin Pacherie</name>
+			<email>spam@genielog.com</email>
+			<organization>GenieLog.com</organization>
+			<organizationUrl>https://www.genielog.com</organizationUrl>
+		</developer>
+	</developers>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -18,6 +50,7 @@
 		<junit.jupiter.version>5.4.2</junit.jupiter.version>
 		<junit.platform.version>1.5.2</junit.platform.version>
 		<log4j.version>2.14.0</log4j.version>
+		<gpg.keyname>0x5A3A36C4</gpg.keyname>
 	</properties>
 
   <!-- ************************************************************************************************************ -->
@@ -112,6 +145,16 @@
 	</dependencies>
 
   <!-- ************************************************************************************************************ -->
+	<distributionManagement>
+		<snapshotRepository>
+			<id>ossrh</id>
+			<url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+		</snapshotRepository>
+		<repository>
+			<id>ossrh</id>
+			<url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+		</repository>
+	</distributionManagement>
 
 	<build>
 		<pluginManagement><!-- lock down plugins versions to avoid using Maven defaults (may be moved to parent pom) -->
@@ -160,6 +203,67 @@
 				<plugin>
 					<artifactId>maven-project-info-reports-plugin</artifactId>
 					<version>3.0.0</version>
+				</plugin>
+
+				<!-- ******************************************************************************************* -->
+				<!-- ** Plugins for Maven Central Repository Publication                                      ** -->
+				<!-- ******************************************************************************************* -->
+
+				<!-- See https://central.sonatype.org/publish/publish-maven/ -->
+				<plugin>
+					<groupId>org.sonatype.plugins</groupId>
+					<artifactId>nexus-staging-maven-plugin</artifactId>
+					<version>1.6.8</version>
+					<extensions>true</extensions>
+					<configuration>
+						<serverId>ossrh</serverId>
+						<nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
+						<autoReleaseAfterClose>true</autoReleaseAfterClose>
+					</configuration>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-source-plugin</artifactId>
+					<version>2.2.1</version>
+					<executions>
+						<execution>
+							<id>attach-sources</id>
+							<goals>
+								<goal>jar-no-fork</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-javadoc-plugin</artifactId>
+					<version>2.9.1</version>
+					<executions>
+						<execution>
+							<id>attach-javadocs</id>
+							<goals>
+								<goal>jar</goal>
+							</goals>
+						</execution>
+					</executions>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-gpg-plugin</artifactId>
+					<version>1.5</version>
+					<executions>
+						<execution>
+							<id>sign-artifacts</id>
+							<phase>verify</phase>
+							<goals>
+								<goal>sign</goal>
+							</goals>
+							<configuration>
+								<keyname>${gpg.keyname}</keyname>
+								<passphraseServerId>${gpg.keyname}</passphraseServerId>
+							</configuration>
+						</execution>
+					</executions>
 				</plugin>
 			</plugins>
 		</pluginManagement>

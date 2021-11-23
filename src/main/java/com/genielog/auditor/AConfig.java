@@ -196,7 +196,7 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 		JsonNode jsonChecker = null;
 		try {
 			jsonChecker = AConfig.getObjectMapper().readTree(checkerFile);
-			if ((jsonChecker != null) && (jsonChecker.get(AChecker.VERSION).asText("").startsWith("Checker "))) {
+			if ((jsonChecker != null) && (jsonChecker.get("version").asText("").startsWith("Checker "))) {
 				result = makeChecker(jsonChecker);
 			} else {
 				_logger.error("Submitted JSON is not one of a Checker ? ");
@@ -215,7 +215,7 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 	public static ObjectMapper getObjectMapper() {
 		if (sMapper == null) {
 			sMapper = new ObjectMapper();
-			sMapper.setVisibility(PropertyAccessor.ALL, Visibility.PROTECTED_AND_PUBLIC);
+			sMapper.setVisibility(PropertyAccessor.ALL, Visibility.NONE);
 			sMapper.setVisibility(PropertyAccessor.FIELD, Visibility.ANY);
 			sMapper.setVisibility(PropertyAccessor.IS_GETTER, Visibility.NONE);
 			sMapper.setVisibility(PropertyAccessor.GETTER, Visibility.NONE);

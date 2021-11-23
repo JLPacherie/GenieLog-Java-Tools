@@ -1,10 +1,10 @@
 package com.genielog.tools.parameters;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Type;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
+import com.genielog.tools.Tools;
 import com.genielog.tools.functional.SerializableConsumer;
 import com.genielog.tools.functional.SerializableSupplier;
 
@@ -30,9 +30,12 @@ public class AttributeWrapper {
 					add(field.getName(),
 							() -> {
 								try {
+									field.setAccessible(true);
 									return field.get(this);
 								} catch (IllegalAccessException | IllegalArgumentException e) {
-
+									_parameters._logger.error("Unable to get value of field {} : {}",
+											field.getName(),
+											Tools.getExceptionMessages(e));
 								}
 								return null;
 							},
