@@ -14,7 +14,7 @@ public abstract class ADefect<C extends AChecker<S,? extends ADefect<C,S>>, S > 
 
 	protected transient Logger _logger;
 
-	protected C checker;
+	protected transient C checker;
 	protected S subject;
 	
 	protected ADefect(C checker, S subject) {

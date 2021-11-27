@@ -21,7 +21,6 @@ import java.util.stream.Stream;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
@@ -132,6 +131,7 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 			_options.addOption("h", "help", false, "display help message");
 			_options.addOption("v", "verbose", false, "Run verbosely");
 			_options.addOption("g", "debug", false, "Run in debug mode");
+			_options.addOption(null, "quiet", false, "No console logs");
 			_options.addOption(null, "disable-default", false, "Disable all default checkers");
 
 			_options.addOption(
@@ -184,14 +184,21 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 					Option.builder("en")
 							.longOpt("enable")
 							.numberOfArgs(1)
-							.desc("Enable checker metric")
+							.desc("Enable checker")
 							.build());
 
+			_options.addOption(
+					Option.builder("")
+							.longOpt("disable")
+							.numberOfArgs(1)
+							.desc("Disable checker")
+							.build());
 		}
 		return _options;
 	}
 
-	protected C makeChecker(InputStream checkerFile) {
+	/** Parse the input stream as a JSON source and make a checker from it. */
+	protected final C makeChecker(InputStream checkerFile) {
 		C result = null;
 		JsonNode jsonChecker = null;
 		try {
@@ -320,21 +327,51 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 					System.err.println(getHelpBanner());
 					return true;
 				}
+
 				if (line.hasOption("debug")) {
 
 					LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 					Configuration config = ctx.getConfiguration();
+					LoggerConfig loggerConfig = config.getLoggerConfig("com.genielog.coverity");
+
+					if (loggerConfig != null) {
+						ConsoleAppender consoleAppender = (ConsoleAppender) loggerConfig.getAppenders().get("Console");
+						if (consoleAppender != null) {
+							ThresholdFilter currentFilter = (ThresholdFilter) consoleAppender.getFilter();
+							consoleAppender.removeFilter(currentFilter);
+							ThresholdFilter newFilter = ThresholdFilter.createFilter(Level.DEBUG, Result.ACCEPT, Result.DENY);
+							consoleAppender.addFilter(newFilter);
+
+							ctx.updateLoggers();
+							Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
+
+							_logger.debug("Activating debug logs");
+						} else {
+							_logger.error("Unable to find the Console appended to adjust debug log mode");
+						}
+					} else {
+						_logger.error("Unable to find the com.genielog.coverity logger to set debug log mode");
+					}
+				}
+
+				if (line.hasOption("quiet")) {
+
+					LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+					Configuration config = ctx.getConfiguration();
+
 					LoggerConfig loggerConfig = config.getLoggerConfig(LogManager.ROOT_LOGGER_NAME);
+
 					ConsoleAppender consoleAppender = (ConsoleAppender) loggerConfig.getAppenders().get("Console");
-					ThresholdFilter currentFilter = (ThresholdFilter) consoleAppender.getFilter();
-					consoleAppender.removeFilter(currentFilter);
-					ThresholdFilter newFilter = ThresholdFilter.createFilter(Level.DEBUG, Result.ACCEPT, Result.DENY);
-					consoleAppender.addFilter(newFilter);
+					loggerConfig.removeAppender("Console");
+					// ThresholdFilter currentFilter = (ThresholdFilter) consoleAppender.getFilter();
+					// consoleAppender.removeFilter(currentFilter);
+					// ThresholdFilter newFilter = ThresholdFilter.createFilter(Level.DEBUG, Result.ACCEPT, Result.DENY);
+					// consoleAppender.addFilter(newFilter);
 
 					ctx.updateLoggers();
-					Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.DEBUG);
+					// Configurator.setAllLevels(LogManager.getRootLogger().getName(), Level.OFF);
 
-					_logger.debug("Activating debug logs");
+					_logger.debug("Deactivating Coverity tools logs");
 				}
 
 				// ----------------------------------------------------------------
@@ -484,6 +521,22 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 					}
 				}
 
+				// Disable Checkers - this enable the checker
+				{
+					String[] checkerNameList = line.getOptionValues("disable");
+					if (checkerNameList != null) {
+						for (String checkerName : checkerNameList) {
+							C checker = disableChecker(checkerName);
+							if (checker == null) {
+								_logger.error("Unable to disable checker: {}", checkerName);
+								result = false;
+							} else {
+								_logger.debug("Manually activating checker: {}", checker);
+							}
+						}
+					}
+				}
+
 				// ----------------------------------------------------------------
 				// Listing all the available checkers
 				// ----------------------------------------------------------------
@@ -553,9 +606,7 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 		return result;
 	}
 
-	/**
-	 * After being loaded, a configuration should be initialized.
-	 */
+	/** After being loaded, a configuration should be initialized. */
 	public boolean init() {
 		boolean result = true;
 
@@ -779,6 +830,24 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 		return checker;
 	}
 
+	public C disableChecker(String name) {
+
+		if (!isValidCheckerName(name)) {
+			throw new IllegalArgumentException("Invalid checker name to enable : '" + name + "'");
+		}
+
+		C checker = getEnabledChecker(name);
+		if ((checker != null) && (checker.isValid())) {
+			_enabledCheckers.remove(checker);
+			_availableCheckers.add(checker);
+			_logger.debug("Removing checker {}", checker);
+		} else {
+			_logger.warn("Invalid checker to disable, was not enabled : {}", name);
+		}
+
+		return checker;
+	}
+
 	/** Returns true if the check is already enabled. */
 	public boolean isEnabled(String checkerName) {
 		if (!isValidCheckerName(checkerName)) {
@@ -790,6 +859,11 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 	//
 	// ******************************************************************************************************************
 	//
+
+	public C getChecker(String name) {
+		C result = getAvailableChecker(name);
+		return result != null ? result : getEnabledChecker(name);
+	}
 
 	/**
 	 * Returns an available checker identified by the given name if there's one.

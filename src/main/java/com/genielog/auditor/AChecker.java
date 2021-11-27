@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.genielog.tools.Chrono;
@@ -261,6 +260,10 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 			}
 		}
 		return result;
+	}
+
+	public AConfig getConfig() {
+		return _config;
 	}
 
 }
