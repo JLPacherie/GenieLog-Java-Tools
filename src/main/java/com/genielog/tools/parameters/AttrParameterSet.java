@@ -1,7 +1,6 @@
 package com.genielog.tools.parameters;
 
 import java.io.Serializable;
-import java.util.Map;
 
 public class AttrParameterSet extends AParameterSet<Object> implements Serializable {
 

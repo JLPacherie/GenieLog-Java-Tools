@@ -1,6 +1,5 @@
 package com.genielog.tools;
 
-import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Spliterator;

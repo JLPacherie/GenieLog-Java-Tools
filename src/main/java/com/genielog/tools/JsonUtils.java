@@ -15,7 +15,7 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 public class JsonUtils {
 
 	private static ObjectMapper sMapper = null;
-
+	
 	private JsonUtils() {
 
 	}
@@ -130,6 +130,7 @@ public class JsonUtils {
 		try {
 			return getObjectMapper().readTree(text);
 		} catch (IOException e) {
+			
 			e.printStackTrace();
 		}
 		return null;
