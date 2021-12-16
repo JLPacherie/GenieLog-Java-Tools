@@ -23,6 +23,11 @@ import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.TimeZone;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -136,7 +141,107 @@ public class Tools {
 	// ******************************************************************************************************************
 	// Number to String formatting
 	// ******************************************************************************************************************
+	
+	public static List<String> getSharedPrefixes(List<String> paths) {
+		List<String> roots = new ArrayList<>();
 
+		paths.forEach(path -> {
+			String[] modPath = path.split("[\\\\/]");
+			if (roots.isEmpty()) {
+				roots.add(path);
+			} else {
+
+				String longestPath = "";
+				int index = -1;
+				for (int iRoot = 0; iRoot < roots.size(); iRoot++) {
+					String root = roots.get(iRoot);
+					String[] rootPath = root.split("[\\\\/]");
+
+					StringBuilder shared = new StringBuilder();
+					shared.append("/");
+					for (int i = 0; i < Integer.min(rootPath.length, modPath.length); i++) {
+
+						if (!rootPath[i].isEmpty() && !modPath[i].isEmpty()) {
+							if (rootPath[i].equals(modPath[i])) {
+								shared.append(rootPath[i] + "/");
+							} else {
+								i = Integer.max(rootPath.length, modPath.length);
+							}
+						}
+					}
+					if ((shared.toString().length() > 1)) {
+						longestPath = shared.toString();
+						index = iRoot;
+					}
+				}
+				if (index >= 0) {
+					if (!roots.get(index).equals(longestPath)) {
+						roots.set(index, longestPath);
+					}
+				} else {
+					if (!roots.contains(path))
+						roots.add(path);
+				}
+			}
+		});
+
+		return roots;
+	}
+
+	/** Do not call with a parallel stream! */
+	public static List<String> getSharedPrefixes(Stream<String> paths) {
+
+		List<String> result = new ArrayList<>();
+		List<Future<List<String>>> allTasks = new ArrayList<>();
+		Iterator<String> pathIter = paths.iterator();
+		List<String> contrib = new ArrayList<>();
+		ExecutorService executor = Executors.newFixedThreadPool(3);
+		while (pathIter.hasNext()) {
+			contrib.add(pathIter.next());
+			if (contrib.size() > 1000) {
+				final List<String> c = new ArrayList<>(contrib);
+				allTasks.add(executor.submit(() -> {
+					return getSharedPrefixes(c);
+				}));
+				contrib.clear();
+			}
+		}
+
+		if (!contrib.isEmpty()) {
+			result = getSharedPrefixes(contrib);
+		}
+
+		if (!allTasks.isEmpty()) {
+			executor.shutdown();
+
+			try {
+				executor.awaitTermination(10, TimeUnit.MINUTES);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+
+			for (Future<List<String>> task : allTasks) {
+				try {
+					List<String> partResult = task.get();
+
+					for (String root : partResult) {
+						if (!result.contains(root)) {
+							result.add(root);
+						}
+					}
+
+				} catch (InterruptedException | ExecutionException e) {
+					e.printStackTrace();
+				}
+			}
+
+			result = getSharedPrefixes(result);
+		}
+
+		return result;
+	}
+
+	
 	/** Format a number to a fixed length string. For example 3435 to 3.4K */
 	public static String getStrFrom(double number) {
 		String suffix = "";

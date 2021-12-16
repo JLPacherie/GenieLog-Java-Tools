@@ -49,7 +49,7 @@
 
 		<junit.jupiter.version>5.4.2</junit.jupiter.version>
 		<junit.platform.version>1.5.2</junit.platform.version>
-		<log4j.version>2.14.0</log4j.version>
+		<log4j.version>2.16.0</log4j.version>
 		<gpg.keyname>0x5A3A36C4</gpg.keyname>
 	</properties>
 

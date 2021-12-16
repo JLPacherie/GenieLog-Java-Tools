@@ -146,11 +146,15 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 
 	/** Execute the verification of the subject if it is valid and generate a defect if necessary or null */
 	public final Stream<D> check() {
-		Stream<? extends S> subjects = getSubjects();
 
+		_logger.debug("Start checking with {}",getName());
+		
 		if (!setUp()) {
 			throw new IllegalStateException(String.format("Checker %s failed to tear up.", this.toString()));
 		}
+
+		Stream<? extends S> subjects = getSubjects();
+
 
 		_nbCheckedSubjects.set(0);
 
@@ -166,6 +170,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 					} catch (Exception e) {
 						_logger.error("Checker {} failed on {} because of {}", this, subject, Tools.getExceptionMessages(e));
 						e.printStackTrace();
+						_checksDuration.pause();
 					}
 					return defect;
 				})
@@ -174,6 +179,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 					if (!tearDown()) {
 						throw new IllegalStateException(String.format("Checker %s failed to tear down.", this.toString()));
 					}
+					_logger.debug("End of checking with {} for {} subjects",getName(),_nbCheckedSubjects.get());
 				});
 
 	}
