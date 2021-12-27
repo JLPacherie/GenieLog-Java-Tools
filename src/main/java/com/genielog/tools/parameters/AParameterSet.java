@@ -182,6 +182,10 @@ public abstract class AParameterSet<T> implements Serializable {
 	// ******************************************************************************************************************
 	//
 
+	public final AParameter<T> add(String name, T value) {
+		return add(name,value,AParameter.READ_WRITE);
+	}
+	
 	/**
 	 * Add or update a parameter with a new value.
 	 * 

@@ -49,7 +49,7 @@ public class TestChecker extends AChecker<Object,TestDefect> {
 	}
 
 	@Override
-	public Stream<? extends Object> getSubjects() {
+	public Stream<Object> getSubjects() {
 		// TODO Auto-generated method stub
 		return null;
 	}

@@ -28,6 +28,10 @@ public class ResUtils {
 
 	protected static Logger logger = LogManager.getLogger(ResUtils.class);
 
+	private ResUtils() {
+		
+	}
+	
 	/**
 	 * Resources are defined in a configuration file or embedded into the Jar file.
 	 */

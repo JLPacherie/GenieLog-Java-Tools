@@ -51,7 +51,7 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 	protected String _name = "";
 	protected String _description = "";
 	private static transient ObjectMapper sMapper = null;
-	protected List<String> checkerPackages = new ArrayList<String>();
+	protected List<String> checkerPackages = new ArrayList<>();
 
 	// The list of enabled checkers by the current configuration.
 	protected List<C> _enabledCheckers = new ArrayList<>();
@@ -234,7 +234,7 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 			try {
 				checkerClass = Class.forName(fullClassname);
 			} catch (ClassNotFoundException e) {
-
+				_logger.debug("Checker class {} not found in package {}", className, checkerPackages.get(iPackage));
 			}
 			iPackage++;
 		}
@@ -247,12 +247,12 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 			}
 		} else {
 			try {
-				
-				_logger.info("Checker class '{}' for '{}' found at '{}'", 
+
+				_logger.debug("Checker class '{}' for '{}' found at '{}'",
 						className,
-						JsonUtils.getFieldAsText(jsonChecker,".name",null,null),
+						JsonUtils.getFieldAsText(jsonChecker, ".name", null, null),
 						checkerClass.getCanonicalName());
-				
+
 				Constructor<?> checkerConstructor = checkerClass.getConstructor();
 				Object checkerInstance = checkerConstructor.newInstance();
 				if (checkerInstance instanceof AChecker<?, ?>) {
@@ -269,6 +269,8 @@ public abstract class AConfig<C extends AChecker> extends AttributeWrapper {
 			if (!result.load(jsonChecker)) {
 				_logger.error("Checker created but loading its configuration failed ?");
 			}
+		} else {
+			_logger.error("Unable to create Checker {}.", className);
 		}
 
 		return result;

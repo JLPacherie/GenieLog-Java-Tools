@@ -91,13 +91,13 @@ public abstract class AParameter<T> implements Serializable {
 	public boolean isValid() {
 		boolean result = true;
 		if (getName() == null) {
-			_logger.warn("Parameter {} has no name", toString());
+			_logger.warn("Parameter {} has no name", this);
 			result = false;
 		}
 		// The test hasValidations is used to avoid calculation of getValue which for
 		// BridgedParameter can cause init issues
 		if (hasValidations() && !isAuthorizedValue(getValue())) {
-			_logger.warn("Parameter {} has invalid value", toString());
+			_logger.warn("Parameter {} has invalid value", this);
 			result = false;
 		}
 		return result;

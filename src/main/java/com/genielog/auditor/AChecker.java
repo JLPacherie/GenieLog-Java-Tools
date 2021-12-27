@@ -64,7 +64,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 	public AtomicLong _nbCheckedSubjects = new AtomicLong();
 
 	@JsonIgnore
-	public Chrono _checksDuration = new Chrono();
+	public transient Chrono _checksDuration = new Chrono();
 	//
 	// ******************************************************************************************************************
 	//
@@ -131,7 +131,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 	public abstract boolean isValidSubject(S subject);
 
 	/** Initialize the checker from the global configuration */
-	public boolean init(AConfig config) {
+	public boolean init(AConfig<? extends AChecker<S,D>> config) {
 		_config = config;
 		return (_config != null);
 	}
@@ -268,7 +268,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 		return result;
 	}
 
-	public AConfig getConfig() {
+	public AConfig<? extends AChecker<S,D>> getConfig() {
 		return _config;
 	}
 

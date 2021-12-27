@@ -34,12 +34,12 @@ public class ZipUtils {
 				}
 			} catch (FileNotFoundException fne) {
 				logger.error("Unable to find input file at '{}'", fileName);
-				result = null;
 				fne.printStackTrace();
 			} catch (IOException e) {
 				logger.error("Unable to open input file at '{}': {}", fileName, Tools.getExceptionMessages(e));
-				result = null;
 				e.printStackTrace();
+			} finally {
+				
 			}
 		}
 		return result;

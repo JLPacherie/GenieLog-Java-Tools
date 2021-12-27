@@ -1,7 +1,9 @@
 package com.genielog.tools;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -14,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 public class RelaxedOptionsParser extends DefaultParser {
 	
   protected Logger _logger = LogManager.getLogger(this.getClass());
+  public Set<String> ignoredOptions = new HashSet<>();
       
 	 @Override
    public CommandLine parse(Options options, String[] arguments) throws ParseException {
@@ -25,7 +28,8 @@ public class RelaxedOptionsParser extends DefaultParser {
 	                knownArgs.add(arguments[i + 1]);
 	            }
 	        } else {
-	          _logger.warn("Unknown option {}",arguments[i]);
+	          _logger.debug("Unknown option {}",arguments[i]);
+	          ignoredOptions.add(arguments[i]);
 	        }
 	    }
 	    return super.parse(options, knownArgs.toArray(new String[0]));

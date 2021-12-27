@@ -9,9 +9,8 @@
 	<version>1.0-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
-
 	<name>GenieLog Java Tools</name>
-	<description>A Colelction of Java components for open sourced software</description>
+	<description>A Collection of Java components for open sourced software</description>
 	<url>https://github.com/JLPacherie/GenieLog-Java-Tools</url>
 
 	<organization>
@@ -49,7 +48,10 @@
 
 		<junit.jupiter.version>5.4.2</junit.jupiter.version>
 		<junit.platform.version>1.5.2</junit.platform.version>
-		<log4j.version>2.16.0</log4j.version>
+
+		<log4j.version>2.17.0</log4j.version>
+
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<gpg.keyname>0x5A3A36C4</gpg.keyname>
 	</properties>
 

@@ -200,9 +200,7 @@ public class Tools {
 			contrib.add(pathIter.next());
 			if (contrib.size() > 1000) {
 				final List<String> c = new ArrayList<>(contrib);
-				allTasks.add(executor.submit(() -> {
-					return getSharedPrefixes(c);
-				}));
+				allTasks.add(executor.submit(() -> getSharedPrefixes(c)));
 				contrib.clear();
 			}
 		}
@@ -486,7 +484,7 @@ public class Tools {
 
 	/** Produce a sorted list of strings extracted from a list of objects. */
 	public static <T> String toStringList(Stream<T> s, Function<T, String> getLabel, String separator) {
-		List<String> l = s.map(t -> getLabel.apply(t)).sorted().collect(Collectors.toList());
+		List<String> l = s.map(getLabel::apply).sorted().collect(Collectors.toList());
 		StringBuilder buffer = new StringBuilder();
 		if (!l.isEmpty()) {
 			buffer.append(l.get(0));
