@@ -59,8 +59,8 @@ public class ResUtils {
 
 				List<Path> match = searchPath(fromClass, null, path, ".*/" + resource);
 				if (!match.isEmpty()) {
-					try {
-						InputStream is = fromClass.getResourceAsStream(match.get(0).toString());
+					try (InputStream is = fromClass.getResourceAsStream(match.get(0).toString())) {
+						
 						result = IOUtils.toString(is, StandardCharsets.UTF_8);
 					} catch (IOException e) {
 						logger.error("Unable to load checker definition from Jar {}", e.getLocalizedMessage());
