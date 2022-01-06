@@ -48,7 +48,7 @@ class ParamValidationsTest extends BaseTest {
 	void testCreate_Update_With_AuthorizedValues() {
 		Parameter p1 = new StrParameter("p1", "value1", Parameter.READ_WRITE);
 
-		assertNotNull(p1 != null, "Parameter not created ?");
+		assertNotNull(p1, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("value1", p1.getValue(), "Bad value.");
 
@@ -82,7 +82,7 @@ class ParamValidationsTest extends BaseTest {
 	void testCreate_Update_With_Validators() {
 		Parameter p1 = new StrParameter("p1", "any thing", Parameter.READ_WRITE);
 
-		assertNotNull(p1 != null, "Parameter not created ?");
+		assertNotNull(p1, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("any thing", p1.getValue(), "Bad value.");
 
@@ -141,7 +141,7 @@ class ParamValidationsTest extends BaseTest {
 	void testCreate_Update_With_Authorized_And_Validators() {
 		Parameter p1 = new StrParameter("p1", "any thing", Parameter.READ_WRITE);
 
-		assertNotNull(p1 != null, "Parameter not created ?");
+		assertNotNull(p1, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("any thing", p1.getValue(), "Bad value.");
 
@@ -196,7 +196,7 @@ class ParamValidationsTest extends BaseTest {
 	void testCreate_Update_With_Authorized_And_Validators_Inverted() {
 		Parameter p1 = new StrParameter("p1", "any thing", Parameter.READ_WRITE);
 
-		assertNotNull(p1 != null, "Parameter not created ?");
+		assertNotNull(p1, "Parameter not created ?");
 		assertEquals("p1", p1.getName(), "Bad name.");
 		assertEquals("any thing", p1.getValue(), "Bad value.");
 

@@ -18,11 +18,11 @@ class ParameterTests extends BaseTest {
 
 		Parameter p1 = new StrParameter("p1", "value of p1", Parameter.READ_WRITE);
 		_logger.info("Value of p1 : '{}'", p1.getValue());
-		assertEquals(p1.getValue(), "value of p1");
+		assertEquals("value of p1",p1.getValue());
 
 		Parameter p2 = new StrParameter("p2", "value of p2", Parameter.READ_ONLY);
 		_logger.info("Value of p2 : '{}'", p2.getValue());
-		assertEquals(p2.getValue(), "value of p2");
+		assertEquals("value of p2",p2.getValue());
 
 		assertThrows(Exception.class, () -> p2.setValue("new value for p2"));
 		assertEquals("value of p2", p2.getValue());

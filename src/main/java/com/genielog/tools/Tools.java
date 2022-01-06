@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.javatuples.Pair;
 
 /**
@@ -48,11 +50,10 @@ import org.javatuples.Pair;
  */
 public class Tools {
 
-	
 	public static boolean isUndefined(String str) {
 		return str == null || str.isEmpty();
 	}
-	
+
 	public static <T> boolean isUndefined(Collection<T> collection) {
 		return collection == null || collection.isEmpty();
 	}
@@ -67,81 +68,92 @@ public class Tools {
 		}
 		return result;
 	}
-	
+
 	public static String getPathnameDir(String pathname) {
 		int pos = pathname.lastIndexOf(File.separatorChar);
 		if (pos > 0) {
-			return pathname.substring(0,pos+1);
+			return pathname.substring(0, pos + 1);
 		}
 		return File.separator;
 	}
-	
+
 	/** There's a regular implementation for this in Guava */
-	public static<A, B, C> Stream<C> zip(Stream<? extends A> a,
-	                                     Stream<? extends B> b,
-	                                     BiFunction<? super A, ? super B, ? extends C> zipper) {
-	    Objects.requireNonNull(zipper);
-	    Spliterator<? extends A> aSpliterator = Objects.requireNonNull(a).spliterator();
-	    Spliterator<? extends B> bSpliterator = Objects.requireNonNull(b).spliterator();
+	public static <A, B, C> Stream<C> zip(Stream<? extends A> a,
+																				Stream<? extends B> b,
+																				BiFunction<? super A, ? super B, ? extends C> zipper) {
+		Objects.requireNonNull(zipper);
+		Spliterator<? extends A> aSpliterator = Objects.requireNonNull(a).spliterator();
+		Spliterator<? extends B> bSpliterator = Objects.requireNonNull(b).spliterator();
 
-	    // Zipping looses DISTINCT and SORTED characteristics
-	    int characteristics = aSpliterator.characteristics() & bSpliterator.characteristics() &
-	            ~(Spliterator.DISTINCT | Spliterator.SORTED);
+		// Zipping looses DISTINCT and SORTED characteristics
+		int characteristics = aSpliterator.characteristics() & bSpliterator.characteristics() &
+				~(Spliterator.DISTINCT | Spliterator.SORTED);
 
-	    long zipSize = ((characteristics & Spliterator.SIZED) != 0)
-	            ? Math.min(aSpliterator.getExactSizeIfKnown(), bSpliterator.getExactSizeIfKnown())
-	            : -1;
+		long zipSize = ((characteristics & Spliterator.SIZED) != 0)
+				? Math.min(aSpliterator.getExactSizeIfKnown(), bSpliterator.getExactSizeIfKnown())
+				: -1;
 
-	    Iterator<A> aIterator = Spliterators.iterator(aSpliterator);
-	    Iterator<B> bIterator = Spliterators.iterator(bSpliterator);
-	    Iterator<C> cIterator = new Iterator<C>() {
-	        @Override
-	        public boolean hasNext() {
-	            return aIterator.hasNext() && bIterator.hasNext();
-	        }
+		Iterator<A> aIterator = Spliterators.iterator(aSpliterator);
+		Iterator<B> bIterator = Spliterators.iterator(bSpliterator);
+		Iterator<C> cIterator = new Iterator<C>() {
+			@Override
+			public boolean hasNext() {
+				return aIterator.hasNext() && bIterator.hasNext();
+			}
 
-	        @Override
-	        public C next() {
-	            return zipper.apply(aIterator.next(), bIterator.next());
-	        }
-	    };
+			@Override
+			public C next() {
+				return zipper.apply(aIterator.next(), bIterator.next());
+			}
+		};
 
-	    Spliterator<C> split = Spliterators.spliterator(cIterator, zipSize, characteristics);
-	    return (a.isParallel() || b.isParallel())
-	           ? StreamSupport.stream(split, true)
-	           : StreamSupport.stream(split, false);
+		Spliterator<C> split = Spliterators.spliterator(cIterator, zipSize, characteristics);
+		return (a.isParallel() || b.isParallel())
+				? StreamSupport.stream(split, true)
+				: StreamSupport.stream(split, false);
 	}
-	
+
 	public static <T> Stream<T> samePrefixes(Stream<? extends T> a, Stream<? extends T> b) {
-		return zip(a,b, (left,right) -> Pair.with(a,b))
-						.takeWhile(pair-> Objects.equals(pair.getValue0(),pair.getValue1()))
-						.map(pair -> (T) pair.getValue0());
+		return zip(a, b, (left, right) -> Pair.with(a, b))
+				.takeWhile(pair -> Objects.equals(pair.getValue0(), pair.getValue1()))
+				.map(pair -> (T) pair.getValue0());
 	}
-	
-	public static <T> Pair<T[],T[]> getSharedParts(T[] s1, T[] s2) {
+
+	public static <T> Pair<T[], T[]> getSharedParts(T[] s1, T[] s2) {
 		List<T> sharedPrefix = new ArrayList<>();
 		List<T> sharedSuffix = new ArrayList<>();
-		
+
 		int pos = 0;
-		while ( (pos < Math.min(s1.length,s2.length)) && s1[pos].equals(s2[pos])) {
+		while ((pos < Math.min(s1.length, s2.length)) && s1[pos].equals(s2[pos])) {
 			sharedPrefix.add(s1[pos]);
-			pos ++;
+			pos++;
 		}
-		
+
 		int pos1 = s1.length - 1;
 		int pos2 = s2.length - 1;
-		while ( (pos1 * pos2 > 0) && (s1[pos1].equals(s2[pos2]))) {
-			sharedSuffix.add(0,s1[pos1]);
+		while ((pos1 * pos2 > 0) && (s1[pos1].equals(s2[pos2]))) {
+			sharedSuffix.add(0, s1[pos1]);
 			pos1--;
 			pos2--;
 		}
 
-		return Pair.with((T[]) sharedPrefix.toArray(),(T[])sharedSuffix.toArray());
+		return Pair.with((T[]) sharedPrefix.toArray(), (T[]) sharedSuffix.toArray());
 	}
+
+	/** Multi lines logger. */
+	public static void mlLogger(Logger logger, Level level, String prefix, String message) {
+		logger.log(level, message.lines().findFirst().orElse(""));
+		message.lines()
+				.skip(1)
+				.forEach(line -> {
+					logger.log(level, prefix + line);
+				});
+	}
+
 	// ******************************************************************************************************************
 	// Number to String formatting
 	// ******************************************************************************************************************
-	
+
 	public static List<String> getSharedPrefixes(List<String> paths) {
 		List<String> roots = new ArrayList<>();
 
@@ -239,7 +251,6 @@ public class Tools {
 		return result;
 	}
 
-	
 	/** Format a number to a fixed length string. For example 3435 to 3.4K */
 	public static String getStrFrom(double number) {
 		String suffix = "";
@@ -277,7 +288,7 @@ public class Tools {
 		value *= Long.signum(bytes);
 		return String.format("%.1f %ciB", value / 1024.0, ci.current());
 	}
-	
+
 	public static String readableFileSize(long size, String unit) {
 		if (size <= 0)
 			return "0";
@@ -298,7 +309,6 @@ public class Tools {
 			return src.substring(0, maxLength) + s;
 		}
 	}
-
 
 	public static String fmt(double d, int nbDec) {
 		if (d == (long) d)
@@ -398,7 +408,6 @@ public class Tools {
 		return result.toString();
 	}
 
-
 	//
 	// ******************************************************************************************************************
 	// Date & Time conversions
@@ -417,17 +426,17 @@ public class Tools {
 			return dflt;
 		}
 	}
-	
+
 	/** Returns a string date in the SICM format from a string date in fmt format. */
 	public static String convertStrDate(String date, String fmt) {
 		try {
 			LocalDateTime defectDate = LocalDateTime.parse(date, DateTimeFormatter.ofPattern(fmt));
-			return defectDate.format(dateFormater);
+			return (defectDate == null) ? date : defectDate.format(dateFormater);
 		} catch (Exception e) {
 			return date;
 		}
 	}
-	
+
 	public static String getFormatedDate(long epoch, String dateFormat) {
 		Date date = new Date(epoch * 1000L);
 		DateFormat format = new SimpleDateFormat(dateFormat);
@@ -457,24 +466,23 @@ public class Tools {
 
 	/** Returns true if [lower,upper] denotes a valid date range. */
 	public static boolean isValidDateRange(LocalDateTime lower, LocalDateTime upper) {
-		
+
 		if ((lower == null) && (upper == null)) {
 			return true; // Empty range, that's possible
-		} 
-		
+		}
+
 		// ] - Inf ; upper ]
 		if ((lower == null) && (upper != null)) {
-		  return true;
-		} 
-		
-		// [ lower ; + Inf [
-		if ((lower != null) && (upper == null) ) {
 			return true;
 		}
-		
-		
+
+		// [ lower ; + Inf [
+		if ((lower != null) && (upper == null)) {
+			return true;
+		}
+
 		return lower.isEqual(upper) || lower.isBefore(upper);
-		
+
 	}
 	//
 	// ******************************************************************************************************************
@@ -521,17 +529,17 @@ public class Tools {
 		}
 		return c;
 	}
-	
+
 	// ******************************************************************************************************************
-	
-	public static <T> T search(Stream<T> s, T i, BiPredicate<T,T> equals) {
-		return s.filter( is -> equals.test(i,is)).findAny().orElse(null);
+
+	public static <T> T search(Stream<T> s, T i, BiPredicate<T, T> equals) {
+		return s.filter(is -> equals.test(i, is)).findAny().orElse(null);
 	}
-	
-	public static <T> Collection<T> intersect (Stream<T> s1, Supplier<Stream<T>> ss2, BiPredicate<T,T> equals) {
+
+	public static <T> Collection<T> intersect(Stream<T> s1, Supplier<Stream<T>> ss2, BiPredicate<T, T> equals) {
 		List<T> result = new ArrayList<>();
-		s1.forEach( i1 -> {
-			T i = Tools.search(ss2.get(),i1,equals);
+		s1.forEach(i1 -> {
+			T i = Tools.search(ss2.get(), i1, equals);
 			if (i != null) {
 				result.add(i);
 			}
@@ -540,15 +548,13 @@ public class Tools {
 	}
 
 	/** Merge in c1 all items from c2 that are not already there. */
-	public static <T> void union (Collection<T> c1, Stream<T> s2, BiPredicate<T,T> equals) {
-		s2.forEach( i2 -> {
-			T i = Tools.search(c1.stream(),i2,equals);
+	public static <T> void union(Collection<T> c1, Stream<T> s2, BiPredicate<T, T> equals) {
+		s2.forEach(i2 -> {
+			T i = Tools.search(c1.stream(), i2, equals);
 			if (i == null) {
 				c1.add(i2);
 			}
 		});
 	}
 
-	
-	
 }

@@ -40,10 +40,13 @@ public class AttributeWrapper {
 								return null;
 							},
 							v -> {
+								
 								Class<?> type = field.getType();
 								try {
 									field.setAccessible(true);
-									if (type.isAssignableFrom(v.getClass())) {
+									if (v == null) {
+										field.set(this,null);
+									} else if (type.isAssignableFrom(v.getClass())) {
 										field.set(this, v);
 									} else if (v instanceof String) {
 										try {
