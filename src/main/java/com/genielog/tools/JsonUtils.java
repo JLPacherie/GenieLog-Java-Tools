@@ -6,6 +6,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -13,6 +16,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
 public class JsonUtils {
+
+	protected static Logger logger = LogManager.getLogger(JsonUtils.class);
+
 
 	private static ObjectMapper sMapper = null;
 	
@@ -119,8 +125,11 @@ public class JsonUtils {
 			File file = new File(pathname);
 			if (file.isFile()) {
 				return getObjectMapper().readTree(file);
+			} else {
+				logger.warn("File not found {}",pathname);
 			}
 		} catch (IOException e) {
+			logger.error("Unable to parse JSON at {} : {}",pathname,Tools.getExceptionMessages(e));
 			e.printStackTrace();
 		}
 		return null;
@@ -130,7 +139,7 @@ public class JsonUtils {
 		try {
 			return getObjectMapper().readTree(text);
 		} catch (IOException e) {
-			
+			logger.error("Unable to parse JSON from text {} : {}",text,Tools.getExceptionMessages(e));
 			e.printStackTrace();
 		}
 		return null;

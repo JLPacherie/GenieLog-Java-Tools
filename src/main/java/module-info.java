@@ -4,6 +4,7 @@ open module com.genielog.tools {
 	exports com.genielog.auditor;
 	exports com.genielog.tools.parameters;
 	exports com.genielog.tools.functional;
+	exports com.genielog.tools.json;
 	exports com.genielog.tools;
 
 	requires com.fasterxml.jackson.core;
@@ -14,6 +15,7 @@ open module com.genielog.tools {
 	requires javatuples;
 	requires transitive commons.cli;
 	requires org.apache.commons.io;
+	requires com.google.common;
 
 
 }

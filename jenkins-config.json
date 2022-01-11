@@ -87,7 +87,6 @@
 
 			// This command is for building the artifacts
 			"clean_command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" -DskipTests clean"
-		},
-
+		}
 	}
 }
