@@ -180,7 +180,7 @@ public abstract class AParameter<T> implements Serializable {
 		// If the proposed value has an exact match in the authorized value, then it's fine
 		//
 		boolean authorized = (_authorizedValues == null) || (_authorizedValues.isEmpty()) ||
-				_authorizedValues.stream().anyMatch(v -> v.equals(value));
+				_authorizedValues.stream().anyMatch(v -> Objects.equals(v,value));
 
 		return validated && authorized;
 	}

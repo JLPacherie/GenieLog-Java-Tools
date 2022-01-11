@@ -131,7 +131,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 	public abstract boolean isValidSubject(S subject);
 
 	/** Initialize the checker from the global configuration */
-	public boolean init(AConfig<? extends AChecker<S,D>> config) {
+	public boolean init(AConfig<? extends AChecker<S, D>> config) {
 		_config = config;
 		return (_config != null);
 	}
@@ -147,40 +147,40 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 	/** Execute the verification of the subject if it is valid and generate a defect if necessary or null */
 	public final Stream<D> check() {
 
-		_logger.debug("Start checking with {}",getName());
-		
+		_logger.debug("Start checking with {}", getName());
+
 		if (!setUp()) {
 			throw new IllegalStateException(String.format("Checker %s failed to tear up.", this.toString()));
 		}
 
 		Stream<? extends S> subjects = getSubjects();
 
-
 		_nbCheckedSubjects.set(0);
 
-		return subjects
-				.filter(this::isValidSubject)
-				.map((S subject) -> {
-					_nbCheckedSubjects.incrementAndGet();
-					D defect = null;
-					try {
-						_checksDuration.resume();
-						defect = this.doCheck(subject);
-						_checksDuration.pause();
-					} catch (Exception e) {
-						_logger.error("Checker {} failed on {} because of {}", this, subject, Tools.getExceptionMessages(e));
-						e.printStackTrace();
-						_checksDuration.pause();
-					}
-					return defect;
-				})
-				.filter(Objects::nonNull)
-				.onClose(() -> {
-					if (!tearDown()) {
-						throw new IllegalStateException(String.format("Checker %s failed to tear down.", this.toString()));
-					}
-					_logger.debug("End of checking with {} for {} subjects",getName(),_nbCheckedSubjects.get());
-				});
+		return (subjects == null) ? Stream.empty()
+				: subjects
+						.filter(this::isValidSubject)
+						.map((S subject) -> {
+							_nbCheckedSubjects.incrementAndGet();
+							D defect = null;
+							try {
+								_checksDuration.resume();
+								defect = this.doCheck(subject);
+								_checksDuration.pause();
+							} catch (Exception e) {
+								_logger.error("Checker {} failed on {} because of {}", this, subject, Tools.getExceptionMessages(e));
+								e.printStackTrace();
+								_checksDuration.pause();
+							}
+							return defect;
+						})
+						.filter(Objects::nonNull)
+						.onClose(() -> {
+							if (!tearDown()) {
+								throw new IllegalStateException(String.format("Checker %s failed to tear down.", this.toString()));
+							}
+							_logger.debug("End of checking with {} for {} subjects", getName(), _nbCheckedSubjects.get());
+						});
 
 	}
 
@@ -268,7 +268,7 @@ public abstract class AChecker<S, D extends ADefect> extends AttributeWrapper im
 		return result;
 	}
 
-	public AConfig<? extends AChecker<S,D>> getConfig() {
+	public AConfig<? extends AChecker<S, D>> getConfig() {
 		return _config;
 	}
 

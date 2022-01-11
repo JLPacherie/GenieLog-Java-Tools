@@ -49,7 +49,7 @@ public class JsonCascadedSheet {
 		_logger.debug("Initializing a Cascaded Json Sheet from a path and a child sheet");
 		childSheet = child;
 		if (!load(path)) {
-			_logger.error("Unable to load Json Cascaded Sheet {}",path);
+			_logger.error("Unable to load Json Cascaded Sheet {}", path);
 			clear();
 		}
 	}
@@ -71,11 +71,11 @@ public class JsonCascadedSheet {
 		}
 
 		if (!load(path)) {
-			_logger.error("Unable to load Json Cascaded Sheet {}",path);
+			_logger.error("Unable to load Json Cascaded Sheet {}", path);
 			clear();
 		}
 	}
-	
+
 	public String message() {
 		return "Hello";
 	}
@@ -126,7 +126,7 @@ public class JsonCascadedSheet {
 		}
 
 		if (!result.exists()) {
-			_logger.debug("Json Cascaded Sheet not found at {}",result.getAbsolutePath());
+			_logger.debug("Json Cascaded Sheet not found at {}", result.getAbsolutePath());
 			System.out.println("Json Cascaded Sheet not found at" + result.getAbsolutePath());
 			result = getLibraries().stream()
 					.map(dir -> new File(dir.getAbsolutePath() + File.separator + path))
@@ -257,6 +257,43 @@ public class JsonCascadedSheet {
 		return node;
 	}
 
+	//
+	// ******************************************************************************************************************
+	//
+
+	/** Returns the value of the given path as an Integer, or null if not possible. */
+	public Integer getAsInteger(String path) {
+		Object result = get(path);
+		if (result instanceof String) {
+			try {
+				result = Integer.parseInt((String) result);
+			} catch (NumberFormatException e) {
+				_logger.error("Path value not an integer {}", result);
+			}
+		}
+		return (result instanceof Integer) ? (Integer) result : null;
+	}
+
+	//
+	// ******************************************************************************************************************
+	//
+
+	public Double getAsDouble(String path) {
+		Object result = get(path);
+		if (result instanceof String) {
+			try {
+				result = Double.parseDouble((String) result);
+			} catch (NumberFormatException e) {
+				_logger.error("Path value not a double {}", result);
+			}
+		}
+		return (result instanceof Double) ? (Double) result : null;
+	}
+
+	//
+	// ******************************************************************************************************************
+	//
+
 	public Object get(String path) {
 
 		Object result = null;
@@ -285,15 +322,22 @@ public class JsonCascadedSheet {
 
 	public String resolve(String value) {
 		String result = value;
-		Pattern regex = Pattern.compile("\\$\\{.*\\}");
-		Matcher matcher = regex.matcher(result);
-		while (matcher.find()) {
-			String reference = matcher.group().substring(2, matcher.group().length() - 1);
-			Object refValue = get(reference);
-			if (refValue instanceof String) {
-				result = result.replace(matcher.group(), (String) refValue);
+		if (result != null) {
+			Pattern regex = Pattern.compile("\\$\\{.*\\}");
+			Matcher matcher = regex.matcher(result);
+			while (matcher.find()) {
+				String match = matcher.group();
+				if ((matcher != null) && (match.length() > 3)) {
+					String reference = match.substring(2, match.length() - 1);
+					Object refValue = get(reference);
+					if (refValue instanceof String) {
+						result = result.replace(match, (String) refValue);
+					}
+					matcher = regex.matcher(result);
+				} else {
+					return result;
+				}
 			}
-			matcher = regex.matcher(result);
 		}
 		return result;
 	}
