@@ -71,7 +71,8 @@ class JsonTests extends BaseTest {
 
 		_logger.info("Coverity Analysis Type : {}", sheet.get(".coverity.analysis.type"));
 		_logger.info("        as defined by  : {}", sheet.getDefinition(".coverity.analysis.type"));
-		_logger.info("              in sheet : {}", sheet.getDefinitionLocation(".coverity.analysis.type").getFile().getName());
+		_logger.info("              in sheet : {}",
+				sheet.getDefinitionLocation(".coverity.analysis.type").getFile().getName());
 		assertTrue(sheet.get(".coverity.analysis.type") instanceof String, "Bad type");
 
 		_logger.info("Project build enabled ? : {}", sheet.get(".project.build.enabled"));
