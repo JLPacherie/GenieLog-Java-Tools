@@ -6,8 +6,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
@@ -15,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.genielog.tools.JsonUtils;
+import com.genielog.tools.StringUtils;
 
 /**
  * 
@@ -44,9 +44,14 @@ public class JsonCascadedSheet {
 	//
 	// ******************************************************************************************************************
 
+	/** Create a Sheet imported from another one (the child sheet). */
 	public JsonCascadedSheet(String path, JsonCascadedSheet child) {
 		_logger = LogManager.getLogger(this.getClass());
-		_logger.debug("Initializing a Cascaded Json Sheet from a path and a child sheet");
+
+		_logger.debug("Initializing a Cascaded Json Sheet import {} from sheet {}",
+				path,
+				child.getFile().getName());
+
 		childSheet = child;
 		if (!load(path)) {
 			_logger.error("Unable to load Json Cascaded Sheet {}", path);
@@ -54,8 +59,8 @@ public class JsonCascadedSheet {
 		}
 	}
 
+	/** Create a root Sheet imported from a path with a list of library dirs for includes. */
 	public JsonCascadedSheet(String path, String... libs) {
-		System.out.println("XXXX");
 
 		_logger = LogManager.getLogger(this.getClass());
 		_logger.debug("Initializing a Cascaded Json Sheet from a path and a list of libs");
@@ -74,10 +79,6 @@ public class JsonCascadedSheet {
 			_logger.error("Unable to load Json Cascaded Sheet {}", path);
 			clear();
 		}
-	}
-
-	public String message() {
-		return "Hello";
 	}
 
 	// ******************************************************************************************************************
@@ -111,6 +112,7 @@ public class JsonCascadedSheet {
 	// ******************************************************************************************************************
 	//
 
+	/** Returns the list of libraries for this sheet or the one of its child sheet) */
 	private List<File> getLibraries() {
 		if (_allLibrariesDir != null) {
 			return _allLibrariesDir;
@@ -118,6 +120,12 @@ public class JsonCascadedSheet {
 		return childSheet.getLibraries();
 	}
 
+	/** Returns a stream of the Included files in this sheet. */
+	public Stream<File> getIncludedFiles() {
+		return _allSheetFiles.stream();
+	}
+
+	/** Seach for the file referenced by a path in library folders (as in an include section). */
 	protected File includeLookUp(String path) {
 		File result = new File(path);
 
@@ -162,10 +170,12 @@ public class JsonCascadedSheet {
 		return result;
 	}
 
-	public Stream<File> getIncludedFiles() {
-		return _allSheetFiles.stream();
-	}
 
+	//
+	// ******************************************************************************************************************
+	//
+
+	/** Loads all referenced parent sheets from the include section of the JSON source. */
 	private boolean resolveIncludes() {
 
 		boolean result = true;
@@ -223,9 +233,13 @@ public class JsonCascadedSheet {
 		return result;
 	}
 
-	//
+	
 	// ******************************************************************************************************************
+	// Cache management.
 	//
+	// The cache allows both to manually overwrite value defined in the JSON files (using the setter) and to cache the
+	// resolved values once find in the JSON file or its included JSON files.
+	// ******************************************************************************************************************
 
 	private Map<String, Object> getCache() {
 		if (_cachedEntries != null) {
@@ -234,21 +248,28 @@ public class JsonCascadedSheet {
 		return childSheet.getCache();
 	}
 
-	public void setValue(String path, Object value) {
-		if (getCache().containsKey(path)) {
-			_logger.debug("Override a cached value : {} was cached '{}'", path, getCache().get(path));
-		}
-
+	/** Returns the cached values (eg. all those requested so far) */
+	public Stream<Map.Entry<String, Object>> getAllCached() {
+		return getCache().entrySet().stream();
 	}
+
+	// ******************************************************************************************************************
+	// Getters and Setters for JSON paths and their values.
+	// ******************************************************************************************************************
+
+	/** Overwrite any value defined in the JSON files. */
+	public void set(String path, Object value) {
+		if (getCache().containsKey(path) && !Objects.equals(getCache().get(path), value)) {
+			_logger.debug("Override a cached value : {} with {} while was cached '{}'", path, value, getCache().get(path));
+		}
+		getCache().put(path, value);
+	}
+
 	//
 	// ******************************************************************************************************************
 	//
 
-	public Stream<Map.Entry<String, Object>> getAllResolved() {
-		return getCache().entrySet().stream();
-	}
-
-	/** Retrieve the definition of value, if not defined, returns the default value. */
+	/** Retrieve the resolved definition of a path, if not defined, returns the default value. */
 	public Object get(String path, Object dflt) {
 		Object node = get(path);
 		if (node == null) {
@@ -257,11 +278,32 @@ public class JsonCascadedSheet {
 		return node;
 	}
 
+	
+	public Object get(String path) {
+		return getFromNode(null,path);
+	}
+
 	//
 	// ******************************************************************************************************************
 	//
 
-	/** Returns the value of the given path as an Integer, or null if not possible. */
+	public String getAsText(String path) {
+		Object result = get(path);
+		if (result instanceof String) {
+			return (String) result;
+		} else if (result instanceof Number) {
+			return ((Number) result).toString();
+		} else if (result instanceof JsonNode) {
+			return JsonUtils.getJsonElement((JsonNode) result, "");
+		}
+		return null;
+	}
+
+	//
+	// ******************************************************************************************************************
+	//
+
+	/** The value of the given path as an Integer (even if a string parsed as a Integer, or null if not possible. */
 	public Integer getAsInteger(String path) {
 		Object result = get(path);
 		if (result instanceof String) {
@@ -294,8 +336,8 @@ public class JsonCascadedSheet {
 	// ******************************************************************************************************************
 	//
 
-	public Object get(String path) {
-
+	/** Returns the resolved deinition of a path from a given root. */
+	public Object getFromNode(JsonNode from, String path) {
 		Object result = null;
 
 		if ((path == null) || (path.isEmpty())) {
@@ -307,73 +349,107 @@ public class JsonCascadedSheet {
 
 		// If not found in the cache, then search it in the current and parent sheets
 		if (result == null) {
-			result = getDefinition(path);
+			result = getDefinition(from,path);
+		
 			// If found, then udpate the cache
 			if (result != null) {
-				if (result instanceof String) {
-					result = resolve((String) result);
-				}
+				result = resolve(result);
 				getCache().put(path, result);
 			}
 		}
 
 		return result;
+
 	}
 
-	public String resolve(String value) {
-		String result = value;
-		if (result != null) {
-			Pattern regex = Pattern.compile("\\$\\{.*\\}");
-			Matcher matcher = regex.matcher(result);
-			while (matcher.find()) {
-				String match = matcher.group();
-				if ((matcher != null) && (match.length() > 3)) {
-					String reference = match.substring(2, match.length() - 1);
-					Object refValue = get(reference);
-					if (refValue instanceof String) {
-						result = result.replace(match, (String) refValue);
-					}
-					matcher = regex.matcher(result);
-				} else {
-					return result;
-				}
+	/** Attempt to resolve any object (a string, an array, ...) */
+	public Object resolve(Object value) {
+		Object result = value;
+		if (value instanceof String) {
+			result = resolve((String) value);
+		} else if (value instanceof Object[]) {
+			result = new Object[((Object[]) value).length];
+			for (int i = 0; i < ((Object[]) value).length; i++) {
+				Object obj = ((Object[]) value)[i];
+				((Object[]) result)[i] = resolve(obj);
 			}
 		}
 		return result;
+	}
+
+	/** Resolve references ${path} in string. */
+	public String resolve(String value) {
+		String result = value;
+		if (result != null) {
+			result = StringUtils.resolve(value, "${", "}", this::getAsText);
+		}
+		return result;
+	}
+
+	public boolean isResolved(String value) {
+		return StringUtils.getAllReferences(value, "${", "}").length == 0;
 	}
 
 	//
 	// ******************************************************************************************************************
 	//
 
+	/** Convert a JsonNode into a plain Java Object if possible */
+	public Object getObjectFromNode(JsonNode node) {
+		Object result = node;
+		if (node != null) {
+			if (node.isTextual()) {
+				return node.asText();
+			}
+			if (node.isInt()) {
+				return node.asInt();
+			}
+			if (node.isDouble()) {
+				return node.asDouble();
+			}
+			if (node.isBoolean()) {
+				return node.asBoolean();
+			}
+			if (node.isArray()) {
+				List<Object> list = new ArrayList<>();
+				node.forEach(listNode -> {
+					list.add(getObjectFromNode(listNode));
+				});
+				return list.toArray();
+			}
+		}
+		return result;
+	}
+
+
+	//
+	// ******************************************************************************************************************
+	//
+	
 	public Object getDefinition(String path) {
+		return getDefinition(null,path);
+	}
+	
+	public Object getDefinition(JsonNode root, String path) {
 
 		if (!isValid()) {
 			throw new IllegalStateException("Cascaded Json Sheet not initialized?");
 		}
 
-		JsonCascadedSheet ownerSheet = getDefinitionLocation(path);
-
-		if (ownerSheet != null) {
-			JsonNode node = JsonUtils.getJsonByPath(ownerSheet._masterSheet, path);
-
+		Object result = null;
+		
+		if (root == null) {
+			JsonCascadedSheet ownerSheet = getDefinitionLocation(path);
+			if (ownerSheet != null) {
+				root = ownerSheet._masterSheet;
+			}
+		}
+		
+		if (root != null) {
+			JsonNode node = JsonUtils.getJsonByPath(root, path);
 			// If a node is found in the current Json sheet then return the converted
 			// values for basic types, or return a JsonNode
-			if (node != null) {
-				if (node.isTextual()) {
-					return node.asText();
-				}
-				if (node.isInt()) {
-					return node.asInt();
-				}
-				if (node.isDouble()) {
-					return node.asDouble();
-				}
-				if (node.isBoolean()) {
-					return node.asBoolean();
-				}
-				return node;
-			}
+			return getObjectFromNode(node);
 		}
 
 		return null;

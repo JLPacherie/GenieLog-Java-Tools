@@ -4,8 +4,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.Test;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.genielog.tools.json.JsonCascadedSheet;
 
@@ -41,8 +50,55 @@ class JsonTests extends BaseTest {
 
 		JsonCascadedSheet sheet = new JsonCascadedSheet(jsonMasterSheetPath);
 
-		assertTrue(sheet.load(jsonMasterSheetPath));
+		assertTrue(sheet.isValid());
 
+		testPaths(sheet, new String[] { ".field1", ".field2", ".field3", ".field4", ".field5", ".field6" });
+
+	}
+
+	String[] _basicPaths = new String[] {
+			".project.name",
+			".project.version",
+			".coverity.work"
+	};
+
+	void testPaths(JsonCascadedSheet sheet, String... paths) {
+		Map<String, Object> dictionary = new HashMap<>();
+
+		for (String path : paths) {
+			Object value = sheet.get(path);
+			assertNotNull(value, "Undefined path " + path);
+			_logger.info(" [{}] = {}", path, value);
+			_logger.info("   as defined by  : {}", sheet.getDefinition(path));
+			_logger.info("         in sheet : {}", sheet.getDefinitionLocation(path).getFile().getName());
+			dictionary.put(path, value);
+		}
+
+		JsonNode compiledNode = null;
+		try {
+			List<File> allFiles = sheet.getIncludedFiles().collect(Collectors.toList());
+			allFiles.add(sheet.getFile());
+			
+			compiledNode = JsonUtils.getJsonNodeFromFile(allFiles.get(0).getAbsolutePath());
+			_logger.info("Initial {}: \n{}",
+					allFiles.get(0).getName(),
+					JsonUtils.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(compiledNode));
+
+			for (int i = 1; i < allFiles.size(); i++) {
+				JsonNode n = JsonUtils.getJsonNodeFromFile(allFiles.get(i).getAbsolutePath());
+				JsonUtils.merge(n, compiledNode);
+				_logger.info("Merged {}: \n{}",
+						allFiles.get(i).getName(),
+						JsonUtils.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(compiledNode));
+			}
+		} catch (JsonProcessingException e) {
+
+		}
+
+		for (Map.Entry<String,Object> entry : dictionary.entrySet()) {
+			String compiledValue = JsonUtils.getFieldAsText(compiledNode, entry.getKey(), null, null);
+			_logger.info(" {} = {} ?= {} ",entry.getKey(),entry.getValue(),compiledValue);
+		}
 	}
 
 	@Test
@@ -55,32 +111,15 @@ class JsonTests extends BaseTest {
 
 		assertEquals("1.0", sheet.get(".version"), "Mismatched version");
 
-		// Test a single raw entry (string)
-		_logger.info("Project           : {}", sheet.get(".project.name"));
-		assertTrue(sheet.get(".project.name") instanceof String, "Bad type");
+		Object[] allConfigs = (Object[]) sheet.get(".coverity.analysis.configs", null);
 
-		_logger.info("Coverity Platform : {}", sheet.get(".coverity.platform.path"));
-		_logger.info("   as defined by  : {}", sheet.getDefinition(".coverity.platform.path"));
-		_logger.info("         in sheet : {}", sheet.getDefinitionLocation(".coverity.platform.path").getFile().getName());
-		assertTrue(sheet.get(".project.name") instanceof String, "Bad type");
+		testPaths(sheet, _basicPaths);
 
-		_logger.info("SNPS Extension Pack is : {}", sheet.get(".snps-extpack.path"));
-		_logger.info("   as defined by  : {}", sheet.getDefinition(".snps-extpack.path"));
-		_logger.info("         in sheet : {}", sheet.getDefinitionLocation(".snps-extpack.path").getFile().getName());
-		assertTrue(sheet.get(".snps-extpack.path") instanceof String, "Bad type");
-
-		_logger.info("Coverity Analysis Type : {}", sheet.get(".coverity.analysis.type"));
-		_logger.info("        as defined by  : {}", sheet.getDefinition(".coverity.analysis.type"));
-		_logger.info("              in sheet : {}",
-				sheet.getDefinitionLocation(".coverity.analysis.type").getFile().getName());
-		assertTrue(sheet.get(".coverity.analysis.type") instanceof String, "Bad type");
-
-		_logger.info("Project build enabled ? : {}", sheet.get(".project.build.enabled"));
-		assertTrue(sheet.get(".project.build.enabled") instanceof Boolean, "Bad type");
+		JsonNode node;
 
 		_logger.info("");
 		_logger.info(" -- List of Resolved Definitions --");
-		sheet.getAllResolved().forEach(entry -> {
+		sheet.getAllCached().forEach(entry -> {
 			JsonCascadedSheet ownerSheet = sheet.getDefinitionLocation(entry.getKey());
 			_logger.info("{} = '{}'", entry.getKey(), entry.getValue());
 			sheet.getAllDefinitionLocation(entry.getKey())
@@ -101,4 +140,62 @@ class JsonTests extends BaseTest {
 		});
 	}
 
+	@Test
+	void test_JenkinsConfigs() {
+
+		String jenkinsConfigDir = "/opt/synopsys/snps-extpack/data/configs";
+		File rootConfigDir = new File(jenkinsConfigDir + "/projects");
+		Collection<File> allFiles = FileUtils.listFiles(rootConfigDir, new String[] { "json" }, true);
+		for (File jsonFile : allFiles) {
+
+			JsonCascadedSheet sheet = null;
+			try {
+				sheet = new JsonCascadedSheet(jsonFile.getAbsolutePath(), jenkinsConfigDir);
+			} catch (IllegalArgumentException e) {
+				sheet = null;
+				_logger.info("Unable to process file {} : {}", jsonFile.getName(), Tools.getExceptionMessages(e));
+			}
+
+			if ((sheet != null) && sheet.isValid()) {
+				_logger.info("");
+				_logger.info(" -------------------------------------------------");
+				_logger.info(" Sucessfuly parsed JSON Cascaded Sheet at {}", sheet.getFile().getName());
+				testPaths(sheet, _basicPaths);
+
+			} else {
+
+			}
+		}
+	}
+
+	@Test
+	void test_merge() throws JsonProcessingException {
+
+		String json1 = "{"
+				+ " \"field1.1\": \"value of field1.1\","
+				+ " \"field_overwrite\": \"value of node1\","
+				+ " \"field1.2\": {"
+				+ "    \"a\": \"value of field1.2 a\","
+				+ "    \"b\": \"value of field1.2 b\""
+				+ "  }"
+				+ "}";
+
+		String json2 = "{"
+				+ " \"field2.1\": \"value of field2.1\","
+				+ " \"field_overwrite\": \"value of node2\","
+				+ " \"field1.2\": {"
+				+ "    \"a\": \"value of node2\""
+				+ "  }"
+				+ "}";
+
+		JsonNode node1 = JsonUtils.getJsonNodeFromText(json1);
+
+		JsonNode node2 = JsonUtils.getJsonNodeFromText(json2);
+
+		JsonUtils.merge(node2, node1);
+
+		_logger.info("Merged : \n{}",
+				JsonUtils.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(node1));
+
+	}
 }

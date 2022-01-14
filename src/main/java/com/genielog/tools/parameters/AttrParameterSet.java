@@ -2,6 +2,8 @@ package com.genielog.tools.parameters;
 
 import java.io.Serializable;
 
+import com.genielog.tools.StringUtils;
+
 public class AttrParameterSet extends AParameterSet<Object> implements Serializable {
 
 	private static final long serialVersionUID = -2713284450963955130L;
@@ -44,7 +46,7 @@ public class AttrParameterSet extends AParameterSet<Object> implements Serializa
 		if (value instanceof String) {
 			return Boolean.parseBoolean(process((String) value));
 		}
-		
+
 		if (value instanceof Boolean) {
 			return (boolean) value;
 		}
@@ -88,7 +90,6 @@ public class AttrParameterSet extends AParameterSet<Object> implements Serializa
 			return Long.parseLong((String) value);
 		}
 
-
 		return defaultValue;
 	}
 
@@ -127,31 +128,12 @@ public class AttrParameterSet extends AParameterSet<Object> implements Serializa
 	 */
 	public String process(final String srcStr) {
 		String result = srcStr;
-		boolean again = true;
-
-		while (again) {
-			String[] paramNames = AParameter.getReferencedParameterNames(result, "${", "}");
-			again = false;
-			int index = 0;
-			while (index < paramNames.length) {
-				String name = paramNames[index];
-				String refName = "${" + name + "}";
+		if (result != null) {
+			result = StringUtils.resolve(result, "${", "}", name -> {
 				Object rawValue = get(name, null, true);
-				String value = (rawValue == null) ? null : rawValue.toString();
-				if (value != null) {
-					if (value.indexOf(refName) == -1) {
-						result = result.replace(refName, value);
-						again = true;
-					} else {
-						again = false;
-						index = paramNames.length + 1;
-						_logger.error("While processing '{}' auto reference detected for parameter '{}'.", srcStr, name);
-					}
-				}
-				index++;
-			}
+				return (rawValue == null) ? null : rawValue.toString();
+			});
 		}
-
 		return result;
 	}
 

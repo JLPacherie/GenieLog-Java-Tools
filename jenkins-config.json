@@ -5,10 +5,7 @@
 
 	"includes": [
 		// --------------------------------------------------------------------------
-		"coverity.json",     // Base definitions for Coverity SAST Analysis
-		"blackduck.json",    // Base definitions for BlackDuck Source SCA Analysis 
-		"bdba.json",         // Base definitions for BlackDuck Binary SCA Analysis 
-		"compliance.json",   // Base definitions for Compliance Gate
+		"project.json",      // Base definitions for a Generic Project
 		// --------------------------------------------------------------------------
 		"cov-java.json"  		 // Additional Coverity definitions for Java/JS 
 	],
@@ -44,9 +41,6 @@
 		// The version name of the project
 		"version": "last",
 		
-		// Where's is located (checked-out) the project inthe Workspace
-		"path": "project",
-
 		// Where are located the source code. Used by SCA for source code
 		"sources": [
 			"."
@@ -56,6 +50,10 @@
 		"targets": [
 			"target/com.genielog.tools*.jar"
 		],
+
+		// ----------------------------------------------------------------------------------------------------------------		
+		// Configuration of the build stage
+		// ----------------------------------------------------------------------------------------------------------------		
 
 		//
 		// Configuration of the project build.
@@ -83,10 +81,61 @@
 			"init_command": "",
 
 			// This command is executed only for a fresh / full build
-			"build_command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" -DskipTests install",
+			"build_command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" -DskipTests package",
 
-			// This command is for building the artifacts
+			// This command is for cleaning the build
 			"clean_command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" -DskipTests clean"
-		}
+			
+		},
+
+		// ----------------------------------------------------------------------------------------------------------------		
+		// Configuration of the QA testing stage
+		// ----------------------------------------------------------------------------------------------------------------		
+
+		"test": {
+
+			"enabled": true,
+
+			//
+			// The testing phase is executed from a Docker container
+			//
+			"docker": {
+				"image": "maven:3.6-jdk-11",
+				"args": ""
+			},
+
+			// This command is for QA testing
+			"command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" test"
+				
+		},
+		
+		// ----------------------------------------------------------------------------------------------------------------		
+		// Configuration of the Installation stage (the artifacts are made available for other projects)
+		// ----------------------------------------------------------------------------------------------------------------		
+
+		"install": {
+
+			"enabled": true,
+
+			//
+			// The testing phase is executed from a Docker container
+			//
+			"docker": {
+				"image": "maven:3.6-jdk-11",
+				"args": ""
+			},
+
+			// This command is for QA testing
+			"command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" install"
+				
+		},
+		
+		// ----------------------------------------------------------------------------------------------------------------		
+		// Configuration of the Deploy stage (the artifact is deployed - if an app then it's executed')
+		// ----------------------------------------------------------------------------------------------------------------		
+		
+		"deploy": {
+			"enabled": false			
+		}	
 	}
 }
