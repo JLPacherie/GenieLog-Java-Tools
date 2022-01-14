@@ -11,26 +11,6 @@
 	],
 
 	// **************************************************************************
-	// Coverity SAST Configuration for this project (overwrites standard ones)
-	// **************************************************************************
-
-	"coverity": {
-		// Does Coverity analysis needed for this project ?
-		"enabled": true,
-		// Overweritte default version
-		"version": "last"
-	},
-
-	// **************************************************************************
-	// BlackDuck SCA Configuration for this project (overwrites standard ones)
-	// **************************************************************************
-
-	"blackduck": {
-		"enabled": true,
-		"exclusions": []
-	},
-
-	// **************************************************************************
 	// Project Specific Build Configuration for this project
 	// **************************************************************************
 	"project": {
