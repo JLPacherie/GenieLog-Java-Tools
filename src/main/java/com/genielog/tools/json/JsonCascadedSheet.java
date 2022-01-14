@@ -120,6 +120,12 @@ public class JsonCascadedSheet {
 		return childSheet.getLibraries();
 	}
 
+	public Stream<File> getAllIncludedFiles() {
+		return Stream.concat(
+				_allSheets.stream().flatMap(JsonCascadedSheet::getAllIncludedFiles),
+				Stream.of(getFile()));
+	}
+
 	/** Returns a stream of the Included files in this sheet. */
 	public Stream<File> getIncludedFiles() {
 		return _allSheetFiles.stream();
@@ -134,8 +140,7 @@ public class JsonCascadedSheet {
 		}
 
 		if (!result.exists()) {
-			_logger.debug("Json Cascaded Sheet not found at {}", result.getAbsolutePath());
-			System.out.println("Json Cascaded Sheet not found at" + result.getAbsolutePath());
+			// _logger.debug("Json Cascaded Sheet not found at {}", result.getAbsolutePath());
 			result = getLibraries().stream()
 					.map(dir -> new File(dir.getAbsolutePath() + File.separator + path))
 					.filter(File::exists)
@@ -143,6 +148,11 @@ public class JsonCascadedSheet {
 					.orElse(null);
 		}
 
+		if (result != null) {
+			_logger.debug("Json Cascaded Sheet found at {}", result.getAbsolutePath());
+		} else {
+			_logger.error("Json Cascaded Sheet not found {}", path);
+		}
 		return result;
 	}
 
@@ -170,7 +180,6 @@ public class JsonCascadedSheet {
 		return result;
 	}
 
-
 	//
 	// ******************************************************************************************************************
 	//
@@ -194,8 +203,6 @@ public class JsonCascadedSheet {
 				while (incIter.hasNext()) {
 					JsonNode incNode = incIter.next();
 					if (incNode.isTextual()) {
-
-						_logger.debug("Resolving include {}", incNode.asText());
 
 						String incPath = incNode.asText();
 						File incFile = includeLookUp(incPath);
@@ -233,7 +240,6 @@ public class JsonCascadedSheet {
 		return result;
 	}
 
-	
 	// ******************************************************************************************************************
 	// Cache management.
 	//
@@ -278,9 +284,8 @@ public class JsonCascadedSheet {
 		return node;
 	}
 
-	
 	public Object get(String path) {
-		return getFromNode(null,path);
+		return getFromNode(null, path);
 	}
 
 	//
@@ -349,8 +354,8 @@ public class JsonCascadedSheet {
 
 		// If not found in the cache, then search it in the current and parent sheets
 		if (result == null) {
-			result = getDefinition(from,path);
-		
+			result = getDefinition(from, path);
+
 			// If found, then udpate the cache
 			if (result != null) {
 				result = resolve(result);
@@ -421,15 +426,14 @@ public class JsonCascadedSheet {
 		return result;
 	}
 
-
 	//
 	// ******************************************************************************************************************
 	//
-	
+
 	public Object getDefinition(String path) {
-		return getDefinition(null,path);
+		return getDefinition(null, path);
 	}
-	
+
 	public Object getDefinition(JsonNode root, String path) {
 
 		if (!isValid()) {
@@ -437,14 +441,14 @@ public class JsonCascadedSheet {
 		}
 
 		Object result = null;
-		
+
 		if (root == null) {
 			JsonCascadedSheet ownerSheet = getDefinitionLocation(path);
 			if (ownerSheet != null) {
 				root = ownerSheet._masterSheet;
 			}
 		}
-		
+
 		if (root != null) {
 			JsonNode node = JsonUtils.getJsonByPath(root, path);
 			// If a node is found in the current Json sheet then return the converted

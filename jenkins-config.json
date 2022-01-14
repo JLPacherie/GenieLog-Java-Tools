@@ -7,7 +7,8 @@
 		// --------------------------------------------------------------------------
 		"project.json",      // Base definitions for a Generic Project
 		// --------------------------------------------------------------------------
-		"cov-java.json"  		 // Additional Coverity definitions for Java/JS 
+		"cov-java.json"  		 // Additional Coverity definitions for Java/JS
+		"project-maven.json" // Additional definitions for project using Maven
 	],
 
 	// **************************************************************************
@@ -20,16 +21,6 @@
 
 		// The version name of the project
 		"version": "last",
-		
-		// Where are located the source code. Used by SCA for source code
-		"sources": [
-			"."
-		],
-
-		// Where are located the target artifacts. Used by SCA for Binary
-		"targets": [
-			"target/com.genielog.tools*.jar"
-		],
 
 		// ----------------------------------------------------------------------------------------------------------------		
 		// Configuration of the build stage
@@ -43,29 +34,7 @@
 			"enabled": true,
 			
 			// It's a pretty small project. no need for incremental
-			"incremental": false,
-
-			//
-			// The build phase is executed from a Docker container
-			//
-			"docker": {
-				"image": "maven:3.6-jdk-11",
-				"args": ""
-			},
-
-			//
-			// Build script / command
-			//
-
-			// This command is executed before trying to build or clean
-			"init_command": "",
-
-			// This command is executed only for a fresh / full build
-			"build_command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" -DskipTests package",
-
-			// This command is for cleaning the build
-			"clean_command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" -DskipTests clean"
-			
+			"incremental": false
 		},
 
 		// ----------------------------------------------------------------------------------------------------------------		
@@ -74,19 +43,8 @@
 
 		"test": {
 
-			"enabled": true,
+			"enabled": true				
 
-			//
-			// The testing phase is executed from a Docker container
-			//
-			"docker": {
-				"image": "maven:3.6-jdk-11",
-				"args": ""
-			},
-
-			// This command is for QA testing
-			"command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" test"
-				
 		},
 		
 		// ----------------------------------------------------------------------------------------------------------------		
@@ -95,18 +53,7 @@
 
 		"install": {
 
-			"enabled": true,
-
-			//
-			// The testing phase is executed from a Docker container
-			//
-			"docker": {
-				"image": "maven:3.6-jdk-11",
-				"args": ""
-			},
-
-			// This command is for QA testing
-			"command": " mvn -Dmaven.repo.local=\"${.snps-extpack.maven_cache}\" install"
+			"enabled": true
 				
 		},
 		

@@ -76,8 +76,13 @@ class JsonTests extends BaseTest {
 
 		JsonNode compiledNode = null;
 		try {
-			List<File> allFiles = sheet.getIncludedFiles().collect(Collectors.toList());
-			allFiles.add(sheet.getFile());
+			
+			List<File> allFiles = sheet.getAllIncludedFiles().collect(Collectors.toList());
+			
+			_logger.info("List of loaded files to compile");
+			allFiles.forEach(file -> {
+				_logger.info("{}",file.getAbsoluteFile());
+			});
 			
 			compiledNode = JsonUtils.getJsonNodeFromFile(allFiles.get(0).getAbsolutePath());
 			_logger.info("Initial {}: \n{}",
@@ -104,7 +109,7 @@ class JsonTests extends BaseTest {
 	@Test
 	void test_CascadedJsonSheet2() {
 
-		String jsonMasterSheetPath = "/opt/Data/kubernetes/storage/jenkins/lts/workspace/GenieLog Java Tools@2/project/jenkins-config.json";
+		String jsonMasterSheetPath = "/opt/Data/kubernetes/storage/jenkins/lts/workspace/GenieLog Java Tools@4/project/jenkins-config.json";
 
 		JsonCascadedSheet sheet = new JsonCascadedSheet(jsonMasterSheetPath, "/opt/synopsys/snps-extpack/data/configs");
 		assertTrue(sheet.isValid());
@@ -114,8 +119,6 @@ class JsonTests extends BaseTest {
 		Object[] allConfigs = (Object[]) sheet.get(".coverity.analysis.configs", null);
 
 		testPaths(sheet, _basicPaths);
-
-		JsonNode node;
 
 		_logger.info("");
 		_logger.info(" -- List of Resolved Definitions --");
