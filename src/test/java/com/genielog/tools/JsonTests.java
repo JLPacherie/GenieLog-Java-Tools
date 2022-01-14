@@ -76,14 +76,14 @@ class JsonTests extends BaseTest {
 
 		JsonNode compiledNode = null;
 		try {
-			
+
 			List<File> allFiles = sheet.getAllIncludedFiles().collect(Collectors.toList());
-			
+
 			_logger.info("List of loaded files to compile");
 			allFiles.forEach(file -> {
-				_logger.info("{}",file.getAbsoluteFile());
+				_logger.info("{}", file.getAbsoluteFile());
 			});
-			
+
 			compiledNode = JsonUtils.getJsonNodeFromFile(allFiles.get(0).getAbsolutePath());
 			_logger.info("Initial {}: \n{}",
 					allFiles.get(0).getName(),
@@ -100,9 +100,9 @@ class JsonTests extends BaseTest {
 
 		}
 
-		for (Map.Entry<String,Object> entry : dictionary.entrySet()) {
+		for (Map.Entry<String, Object> entry : dictionary.entrySet()) {
 			String compiledValue = JsonUtils.getFieldAsText(compiledNode, entry.getKey(), null, null);
-			_logger.info(" {} = {} ?= {} ",entry.getKey(),entry.getValue(),compiledValue);
+			_logger.info(" {} = {} ?= {} ", entry.getKey(), entry.getValue(), compiledValue);
 		}
 	}
 
@@ -110,50 +110,56 @@ class JsonTests extends BaseTest {
 	void test_CascadedJsonSheet2() {
 
 		String jsonMasterSheetPath = "/opt/Data/kubernetes/storage/jenkins/lts/workspace/GenieLog Java Tools@4/project/jenkins-config.json";
+		File jsonFile = new File(jsonMasterSheetPath);
+		if (jsonFile.exists()) {
+			JsonCascadedSheet sheet = new JsonCascadedSheet(jsonMasterSheetPath,
+					"/opt/synopsys/snps-extpack/data/configs/pipeline/conf");
+			assertTrue(sheet.isValid());
 
-		JsonCascadedSheet sheet = new JsonCascadedSheet(jsonMasterSheetPath, "/opt/synopsys/snps-extpack/data/configs");
-		assertTrue(sheet.isValid());
+			assertEquals("1.0", sheet.get(".version"), "Mismatched version");
 
-		assertEquals("1.0", sheet.get(".version"), "Mismatched version");
+			Object[] allConfigs = (Object[]) sheet.get(".coverity.analysis.configs", null);
 
-		Object[] allConfigs = (Object[]) sheet.get(".coverity.analysis.configs", null);
+			Object initCmd = sheet.get(".project.build.init_command");
 
-		testPaths(sheet, _basicPaths);
+			testPaths(sheet, _basicPaths);
 
-		_logger.info("");
-		_logger.info(" -- List of Resolved Definitions --");
-		sheet.getAllCached().forEach(entry -> {
-			JsonCascadedSheet ownerSheet = sheet.getDefinitionLocation(entry.getKey());
-			_logger.info("{} = '{}'", entry.getKey(), entry.getValue());
-			sheet.getAllDefinitionLocation(entry.getKey())
-					// .filter(aSheet -> aSheet != ownerSheet)
-					.forEach(aSheet -> {
-						if (aSheet != ownerSheet) {
-							_logger.info("   Overriden from [{}] was '{}'",
-									aSheet.getFile().getName(),
-									aSheet.getDefinition(entry.getKey()));
+			_logger.info("");
+			_logger.info(" -- List of Resolved Definitions --");
+			sheet.getAllCached().forEach(entry -> {
+				JsonCascadedSheet ownerSheet = sheet.getDefinitionLocation(entry.getKey());
+				_logger.info("{} = '{}'", entry.getKey(), entry.getValue());
+				sheet.getAllDefinitionLocation(entry.getKey())
+						// .filter(aSheet -> aSheet != ownerSheet)
+						.forEach(aSheet -> {
+							if (aSheet != ownerSheet) {
+								_logger.info("   Overriden from [{}] was '{}'",
+										aSheet.getFile().getName(),
+										aSheet.getDefinition(entry.getKey()));
 
-						} else {
-							_logger.info("   Defined in [{}] as '{}'",
-									aSheet.getFile().getName(),
-									aSheet.getDefinition(entry.getKey()));
-						}
-					});
+							} else {
+								_logger.info("   Defined in [{}] as '{}'",
+										aSheet.getFile().getName(),
+										aSheet.getDefinition(entry.getKey()));
+							}
+						});
 
-		});
+			});
+		}
 	}
 
 	@Test
 	void test_JenkinsConfigs() {
 
-		String jenkinsConfigDir = "/opt/synopsys/snps-extpack/data/configs";
-		File rootConfigDir = new File(jenkinsConfigDir + "/projects");
+		String jenkinsConfigDir = "/opt/synopsys/snps-extpack/data/configs/pipeline";
+		File rootConfigDir = new File(jenkinsConfigDir + "/examples");
+
 		Collection<File> allFiles = FileUtils.listFiles(rootConfigDir, new String[] { "json" }, true);
 		for (File jsonFile : allFiles) {
 
 			JsonCascadedSheet sheet = null;
 			try {
-				sheet = new JsonCascadedSheet(jsonFile.getAbsolutePath(), jenkinsConfigDir);
+				sheet = new JsonCascadedSheet(jsonFile.getAbsolutePath(), jenkinsConfigDir + "/conf");
 			} catch (IllegalArgumentException e) {
 				sheet = null;
 				_logger.info("Unable to process file {} : {}", jsonFile.getName(), Tools.getExceptionMessages(e));
