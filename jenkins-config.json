@@ -5,10 +5,10 @@
 
 	"includes": [
 		// --------------------------------------------------------------------------
-		"project.json",      // Base definitions for a Generic Project
+		"project.json",       // Base definitions for a Generic Project
 		// --------------------------------------------------------------------------
-		"cov-java.json"  		 // Additional Coverity definitions for Java/JS
-		"project-maven.json" // Additional definitions for project using Maven
+		"cov-java.json",  		// Additional Coverity definitions for Java/JS
+		"project-maven.json"  // Additional definitions for project using Maven
 	],
 
 	// **************************************************************************
