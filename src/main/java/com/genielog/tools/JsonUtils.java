@@ -176,7 +176,11 @@ public class JsonUtils {
 		Iterator<Map.Entry<String, JsonNode>> incomingFieldsIterator = toBeMerged.fields();
 		Iterator<Map.Entry<String, JsonNode>> mergedIterator = mergedInTo.fields();
 
+		//
+		// Iterates over each of the fields in the source JsonNode
+		//
 		while (incomingFieldsIterator.hasNext()) {
+			
 			Map.Entry<String, JsonNode> incomingEntry = incomingFieldsIterator.next();
 
 			JsonNode subNode = incomingEntry.getValue();
@@ -194,7 +198,9 @@ public class JsonUtils {
 				if (isNewBlock) {
 					((ObjectNode) mergedInTo).replace(incomingEntry.getKey(), incomingEntry.getValue());
 				}
-			} else if (subNode.getNodeType().equals(JsonNodeType.ARRAY)) {
+			} 
+			
+			else if (subNode.getNodeType().equals(JsonNodeType.ARRAY)) {
 				boolean newEntry = true;
 				mergedIterator = mergedInTo.fields();
 				while (mergedIterator.hasNext()) {
@@ -208,6 +214,7 @@ public class JsonUtils {
 					((ObjectNode) mergedInTo).replace(incomingEntry.getKey(), incomingEntry.getValue());
 				}
 			}
+			
 			ValueNode valueNode = null;
 			JsonNode incomingValueNode = incomingEntry.getValue();
 			switch (subNode.getNodeType()) {

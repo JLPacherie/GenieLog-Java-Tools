@@ -349,8 +349,8 @@ public class JsonCascadedSheet {
 			throw new IllegalArgumentException("Invalid undefined path");
 		}
 
-		// First look into the cached entries.
-		result = getCache().get(path);
+		// First look into the cached entries if the path refers to the root node 
+		result = (from == null) ? getCache().get(path) : null;
 
 		// If not found in the cache, then search it in the current and parent sheets
 		if (result == null) {
@@ -359,12 +359,12 @@ public class JsonCascadedSheet {
 			// If found, then udpate the cache
 			if (result != null) {
 				result = resolve(result);
-				getCache().put(path, result);
+				if (from == null)
+					getCache().put(path, result);
 			}
 		}
 
 		return result;
-
 	}
 
 	/** Attempt to resolve any object (a string, an array, ...) */
