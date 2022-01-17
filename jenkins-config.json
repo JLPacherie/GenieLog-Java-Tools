@@ -1,3 +1,10 @@
+// ****************************************************************************
+// Genielog Java Toolbox.
+//
+// Jenkins Configuration
+// ----------------------------------------------------------------------------
+// Author: Jean-Lin Pacherie. 
+// ****************************************************************************
 {
 
 	// Version number of the configuration file
@@ -36,7 +43,7 @@
 			// It's a pretty small project. no need for incremental
 			"incremental": false,
 			
-					//
+			//
 			// The build phase is executed from a Docker container
 			//
 			"docker": {

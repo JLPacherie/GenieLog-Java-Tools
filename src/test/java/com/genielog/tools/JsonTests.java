@@ -135,7 +135,8 @@ class JsonTests extends BaseTest {
 	@Test
 	void test_CascadedJsonSheet2() {
 
-		String jsonMasterSheetPath = "/opt/Data/kubernetes/storage/jenkins/lts/workspace/GenieLog Java Tools@4/project/jenkins-config.json";
+		//String jsonMasterSheetPath = "/opt/Data/kubernetes/storage/jenkins/lts/workspace/GenieLog Java Tools@4/project/jenkins-config.json";
+		String jsonMasterSheetPath = "/opt/Data/kubernetes/storage/jenkins/lts/workspace/Coverity Tools@2/project/jenkins-config.json";
 		File jsonFile = new File(jsonMasterSheetPath);
 		if (jsonFile.exists()) {
 			JsonCascadedSheet sheet = new JsonCascadedSheet(jsonMasterSheetPath,

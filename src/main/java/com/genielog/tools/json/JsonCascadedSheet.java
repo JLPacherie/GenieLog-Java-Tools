@@ -198,40 +198,44 @@ public class JsonCascadedSheet {
 
 		JsonNode includes = JsonUtils.getJsonByPath(_masterSheet, ".includes");
 		if (includes != null) {
-			if (includes.isArray()) {
-				Iterator<JsonNode> incIter = includes.iterator();
-				while (incIter.hasNext()) {
-					JsonNode incNode = incIter.next();
-					if (incNode.isTextual()) {
-
-						String incPath = incNode.asText();
-						File incFile = includeLookUp(incPath);
-
-						if (incFile != null) {
-
-							_logger.debug("Included file found at {}", incFile.getPath());
-
-							JsonCascadedSheet incSheet = new JsonCascadedSheet(incFile.getPath(), this);
-
-							if (incSheet.isValid()) {
-								_allSheets.add(incSheet);
-								_allSheetFiles.add(incFile);
-							} else {
-								result = false;
-								_logger.error("Unable to read JSON sheet from file {}", incFile.getAbsolutePath());
-							}
-						} else {
-							result = false;
-							_logger.error("Included file not found {}", incPath);
-						}
-					} else {
-						result = false;
-						_logger.error("Bad format, __includes should contain only strings which are included JSON file paths");
-					}
-				}
-			} else {
+			if (!includes.isArray()) {
 				result = false;
 				_logger.error("Bad format, __includes is a reserved keyword for the array of included JSON files");
+
+			} else {
+				Iterator<JsonNode> incIter = includes.iterator();
+				while (incIter.hasNext()) {
+
+					JsonNode incNode = incIter.next();
+
+					if (!incNode.isTextual()) {
+						result = false;
+						_logger.error("Bad format, __includes should contain only strings which are included JSON file paths");
+						continue;
+					}
+
+					String incPath = incNode.asText();
+					File incFile = includeLookUp(incPath);
+
+					if (incFile == null) {
+						result = false;
+						_logger.error("Included file not found {}", incPath);
+						continue;
+					}
+
+					_logger.debug("Included file found at {}", incFile.getPath());
+
+					JsonCascadedSheet incSheet = new JsonCascadedSheet(incFile.getPath(), this);
+
+					if (incSheet.isValid()) {
+						_allSheets.add(incSheet);
+						_allSheetFiles.add(incFile);
+					} else {
+						result = false;
+						_logger.error("Unable to read JSON sheet from file {}", incFile.getAbsolutePath());
+					}
+
+				}
 			}
 		} else {
 			_logger.debug("No included sheets found in {}", _masterFile.getPath());
@@ -349,7 +353,7 @@ public class JsonCascadedSheet {
 			throw new IllegalArgumentException("Invalid undefined path");
 		}
 
-		// First look into the cached entries if the path refers to the root node 
+		// First look into the cached entries if the path refers to the root node
 		result = (from == null) ? getCache().get(path) : null;
 
 		// If not found in the cache, then search it in the current and parent sheets
@@ -358,7 +362,7 @@ public class JsonCascadedSheet {
 
 			// If found, then udpate the cache
 			if (result != null) {
-				result = resolve(from,result);
+				result = resolve(from, result);
 				if (from == null)
 					getCache().put(path, result);
 			}
@@ -367,7 +371,15 @@ public class JsonCascadedSheet {
 		return result;
 	}
 
-	/** Attempt to resolve any object (a string, an array, ...) */
+	// ******************************************************************************************************************
+	// Resolvers
+	//
+	// A resolver aims at replacing in String references to other node. A reference is found each time the pattern ${.*}
+	// is found in String field. The referenced value is a path resolved from the context of a Root JsonNode. When no
+	// root context is provided, the default one is the root node of the Sheet.
+	// ******************************************************************************************************************
+
+	/** Resolve any object (a string, entries of an array, ...) from the given root context*/
 	public Object resolve(JsonNode from, Object value) {
 		Object result = value;
 		if (value instanceof String) {
@@ -376,13 +388,13 @@ public class JsonCascadedSheet {
 			result = new Object[((Object[]) value).length];
 			for (int i = 0; i < ((Object[]) value).length; i++) {
 				Object obj = ((Object[]) value)[i];
-				((Object[]) result)[i] = resolve(from,obj);
+				((Object[]) result)[i] = resolve(from, obj);
 			}
 		}
 		return result;
 	}
 
-	/** Resolve references ${path} in string. */
+	/** Resolve references in string in the context of 'from'. If 'from' is null then use Sheet as the context */
 	public String resolve(JsonNode from, String value) {
 		String result = value;
 		if (result != null) {
@@ -390,7 +402,7 @@ public class JsonCascadedSheet {
 				result = StringUtils.resolve(value, "${", "}", this::getAsText);
 			} else {
 				result = StringUtils.resolve(value, "${", "}", name -> {
-					JsonNode valueNode = JsonUtils.getJsonByPath(from,name);
+					JsonNode valueNode = JsonUtils.getJsonByPath(from, name);
 					if (valueNode != null) {
 						Object valueObj = getObjectFromNode(valueNode);
 						if (valueObj != null)
@@ -429,9 +441,7 @@ public class JsonCascadedSheet {
 			}
 			if (node.isArray()) {
 				List<Object> list = new ArrayList<>();
-				node.forEach(listNode -> {
-					list.add(getObjectFromNode(listNode));
-				});
+				node.forEach(listNode -> list.add(getObjectFromNode(listNode)));
 				return list.toArray();
 			}
 		}
