@@ -34,7 +34,16 @@
 			"enabled": true,
 			
 			// It's a pretty small project. no need for incremental
-			"incremental": false
+			"incremental": false,
+			
+					//
+			// The build phase is executed from a Docker container
+			//
+			"docker": {
+				"image": "snps/build-java:latest",
+				"args": ""
+			}
+
 		},
 
 		// ----------------------------------------------------------------------------------------------------------------		
