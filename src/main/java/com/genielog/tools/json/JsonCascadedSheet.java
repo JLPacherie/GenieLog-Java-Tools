@@ -358,7 +358,7 @@ public class JsonCascadedSheet {
 
 			// If found, then udpate the cache
 			if (result != null) {
-				result = resolve(result);
+				result = resolve(from,result);
 				if (from == null)
 					getCache().put(path, result);
 			}
@@ -368,25 +368,37 @@ public class JsonCascadedSheet {
 	}
 
 	/** Attempt to resolve any object (a string, an array, ...) */
-	public Object resolve(Object value) {
+	public Object resolve(JsonNode from, Object value) {
 		Object result = value;
 		if (value instanceof String) {
-			result = resolve((String) value);
+			result = resolve(from, (String) value);
 		} else if (value instanceof Object[]) {
 			result = new Object[((Object[]) value).length];
 			for (int i = 0; i < ((Object[]) value).length; i++) {
 				Object obj = ((Object[]) value)[i];
-				((Object[]) result)[i] = resolve(obj);
+				((Object[]) result)[i] = resolve(from,obj);
 			}
 		}
 		return result;
 	}
 
 	/** Resolve references ${path} in string. */
-	public String resolve(String value) {
+	public String resolve(JsonNode from, String value) {
 		String result = value;
 		if (result != null) {
-			result = StringUtils.resolve(value, "${", "}", this::getAsText);
+			if (from == null) {
+				result = StringUtils.resolve(value, "${", "}", this::getAsText);
+			} else {
+				result = StringUtils.resolve(value, "${", "}", name -> {
+					JsonNode valueNode = JsonUtils.getJsonByPath(from,name);
+					if (valueNode != null) {
+						Object valueObj = getObjectFromNode(valueNode);
+						if (valueObj != null)
+							return valueObj.toString();
+					}
+					return null;
+				});
+			}
 		}
 		return result;
 	}
