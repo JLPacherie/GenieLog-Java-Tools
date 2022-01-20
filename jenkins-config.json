@@ -15,8 +15,24 @@
 		"project.json",       // Base definitions for a Generic Project
 		// --------------------------------------------------------------------------
 		"cov-java.json",  		// Additional Coverity definitions for Java/JS
+		"sonar-java.json",  		// Additional Coverity definitions for Java/JS
 		"project-maven.json"  // Additional definitions for project using Maven
 	],
+
+	"sonar": {
+		"enabled": true,
+		"scanner": {
+			"java_classes": "**/target/classes"
+		}
+	},
+	
+	"coverity": {
+		"enabled": true
+	},
+	
+	"blackduck": {
+		"enabled": true
+	}
 
 	// **************************************************************************
 	// Project Specific Build Configuration for this project
@@ -59,7 +75,7 @@
 
 		"test": {
 
-			"enabled": true				
+			"enabled": false				
 
 		},
 		
