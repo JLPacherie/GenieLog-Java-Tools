@@ -12,11 +12,11 @@
 
 	"includes": [
 		// --------------------------------------------------------------------------
-		"project.json",       // Base definitions for a Generic Project
+		"project.json",        // Base definitions for a Generic Project
+		"project-maven.json",  // Additional definitions for project using Maven
 		// --------------------------------------------------------------------------
-		"cov-java.json",  		// Additional Coverity definitions for Java/JS
-		"sonar-java.json",  		// Additional Coverity definitions for Java/JS
-		"project-maven.json"  // Additional definitions for project using Maven
+		"cov-java.json",    	// Additional Coverity definitions for Java/JS
+		"sonar-java.json"  		// Additional Coverity definitions for Java/JS
 	],
 
 	"sonar": {
@@ -54,15 +54,7 @@
 			"enabled": true,
 			
 			// It's a pretty small project. no need for incremental
-			"incremental": false,
-			
-			//
-			// The build phase is executed from a Docker container
-			//
-			"docker": {
-				"image": "snps/build-java:latest",
-				"args": ""
-			}
+			"incremental": false			
 
 		},
 
@@ -71,7 +63,7 @@
 		// ----------------------------------------------------------------------------------------------------------------		
 
 		"test": {
-
+			// Skip testing. That code is not yet polished and may fail purposeless
 			"enabled": false				
 
 		},
