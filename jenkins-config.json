@@ -32,7 +32,7 @@
 	
 	"blackduck": {
 		"enabled": true
-	}
+	},
 
 	// **************************************************************************
 	// Project Specific Build Configuration for this project
