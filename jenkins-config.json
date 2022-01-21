@@ -14,6 +14,7 @@
 		// --------------------------------------------------------------------------
 		"project.json",        // Base definitions for a Generic Project
 		"project-maven.json",  // Additional definitions for project using Maven
+		"gitlab.json",
 		// --------------------------------------------------------------------------
 		"cov-java.json",    	// Additional Coverity definitions for Java/JS
 		"sonar-java.json"  		// Additional Coverity definitions for Java/JS
@@ -42,6 +43,12 @@
 		// The version name of the project
 		"version": "last",
 
+		"code": {
+			"git": {
+				"url": "${.gitlab.url}/pacherie/genielog-java-tools.git",
+				"branch": "master",
+			}
+		}
 		// ----------------------------------------------------------------------------------------------------------------		
 		// Configuration of the build stage
 		// ----------------------------------------------------------------------------------------------------------------		

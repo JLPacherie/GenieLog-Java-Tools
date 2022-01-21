@@ -1,18 +1,25 @@
 package com.genielog.tools.json;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ContainerNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.genielog.tools.JsonUtils;
 import com.genielog.tools.StringUtils;
 
@@ -33,8 +40,8 @@ public class JsonCascadedSheet {
 	private List<File> _allLibrariesDir = null;
 
 	private List<JsonCascadedSheet> _allSheets = new ArrayList<>();
-	private List<File> _allSheetFiles = new ArrayList<>();
 
+	// If this sheet is loaded from another one, that other one is the CHILD sheet
 	private JsonCascadedSheet childSheet = null;
 
 	private JsonNode _masterSheet = null;
@@ -44,41 +51,47 @@ public class JsonCascadedSheet {
 	//
 	// ******************************************************************************************************************
 
-	/** Create a Sheet imported from another one (the child sheet). */
-	public JsonCascadedSheet(String path, JsonCascadedSheet child) {
-		_logger = LogManager.getLogger(this.getClass());
-
-		_logger.debug("Initializing a Cascaded Json Sheet import {} from sheet {}",
-				path,
-				child.getFile().getName());
-
-		childSheet = child;
-		if (!load(path)) {
-			_logger.error("Unable to load Json Cascaded Sheet {}", path);
-			clear();
-		}
+	public static JsonCascadedSheet build() {
+		JsonCascadedSheet result = new JsonCascadedSheet();
+		return result;
 	}
 
+	public static JsonCascadedSheet clone(JsonCascadedSheet sheet) {
+		JsonNode node = sheet.getRootNode().deepCopy();
+		JsonCascadedSheet result = JsonCascadedSheet.build();
+		sheet.getLibraries().forEach(file -> result.addLibraries(file.getPath()));
+		result.addLibraries(sheet.getFile().getParent());
+		result.load(node);
+		return result;
+	}
+	// ******************************************************************************************************************
+	//
+	// ******************************************************************************************************************
+
 	/** Create a root Sheet imported from a path with a list of library dirs for includes. */
-	public JsonCascadedSheet(String path, String... libs) {
+	public JsonCascadedSheet() {
 
 		_logger = LogManager.getLogger(this.getClass());
-		_logger.debug("Initializing a Cascaded Json Sheet from a path and a list of libs");
 
 		_cachedEntries = new HashMap<>();
 		_allLibrariesDir = new ArrayList<>();
 
-		for (String lib : libs) {
-			File dir = new File(lib);
-			if (dir.isDirectory()) {
-				_allLibrariesDir.add(dir);
-			}
-		}
+	}
 
-		if (!load(path)) {
-			_logger.error("Unable to load Json Cascaded Sheet {}", path);
-			clear();
+	public JsonCascadedSheet includedFrom(JsonCascadedSheet includedFrom) {
+		childSheet = includedFrom;
+		return this;
+	}
+
+	public String getId() {
+		String result = (String) get(".name", "");
+		if (getFile() != null) {
+			result += getFile().getName();
 		}
+		if (childSheet != null) {
+			result += ", imported from " + childSheet.getId();
+		}
+		return result;
 	}
 
 	// ******************************************************************************************************************
@@ -95,43 +108,167 @@ public class JsonCascadedSheet {
 		}
 
 		_allSheets.clear();
-		_allSheetFiles.clear();
 
 		_masterFile = null;
 		_masterSheet = null;
+
+		// TODO Should we also disconnect from includedFrom node ?
+
 	}
 
 	public boolean isValid() {
-		return (_masterFile != null) && (_masterSheet != null);
+		return (_masterSheet != null);
 	}
 
 	public File getFile() {
 		return _masterFile;
 	}
-	//
-	// ******************************************************************************************************************
-	//
 
-	/** Returns the list of libraries for this sheet or the one of its child sheet) */
-	private List<File> getLibraries() {
+	public JsonNode getRootNode() {
+		return _masterSheet;
+	}
+
+	/** Creates a new JSON root node with the aggregation of all included files. */
+	public JsonCascadedSheet compile() {
+
+		JsonNode compiledNode = null;
+
+		List<JsonCascadedSheet> allSheets = getAllIncludedSheets().collect(Collectors.toList());
+
+		_logger.debug("List of loaded files to compile");
+		for (JsonCascadedSheet sheet : allSheets) {
+			_logger.info("{}", sheet.getFile() == null ? "raw" : sheet.getFile().getAbsoluteFile());
+		}
+
+		//
+		// 1) Merge all the Sheets starting from the in depth dependencies
+		//
+		compiledNode = allSheets.get(0)._masterSheet.deepCopy();
+
+		for (int i = 1; i < allSheets.size(); i++) {
+			JsonNode n = allSheets.get(i)._masterSheet;
+			JsonUtils.merge(n, compiledNode);
+
+			//
+			// Merge each field suffixed with '+=' with the field with the same suffix
+			//
+			// Eg. 'fieldA+=' will be merged with 'fieldA'
+			List<String> allPaths = new ArrayList<>();
+			getAllPaths(compiledNode, "", allPaths);
+
+			for (String path : allPaths) {
+				if (path.endsWith("+=")) {
+					// For 'name+=', refname is 'name'
+					String refName = path.substring(0, path.length() - 2);
+					// For '.parent.parent.name' parent is '.parent.parent'
+					String parentName = refName.substring(0, path.lastIndexOf("."));
+
+					if (allPaths.contains(refName)) {
+						JsonNode parentNode = parentName.isEmpty() ? compiledNode
+								: JsonUtils.getJsonByPath(compiledNode, parentName);
+						JsonNode refValue = JsonUtils.getJsonByPath(compiledNode, refName);
+						JsonNode addValue = JsonUtils.getJsonByPath(compiledNode, path);
+
+						if (refValue.isArray() && addValue.isArray()) {
+							((ArrayNode) refValue).addAll((ArrayNode) addValue);
+							String localName = path.substring(path.lastIndexOf(".") + 1);
+							JsonNode removed = ((ObjectNode) parentNode).remove(localName);
+							if (removed != addValue) {
+								_logger.error("Can't remove merged array node ?");
+							}
+						} else if (refValue.isTextual() && addValue.isTextual()) {
+							String mergedValue = refValue.asText() + addValue.asText();
+							String localName = refName.substring(path.lastIndexOf(".") + 1);
+							JsonNode updated = ((ObjectNode) parentNode).replace(localName, new TextNode(mergedValue));
+							JsonNode removed = ((ObjectNode) parentNode).remove(localName + "+=");
+							if (removed != refValue) {
+								_logger.error("Can't remove merged text node ?");
+							}
+
+						}
+
+					} else {
+
+					}
+				}
+			}
+		}
+
+		//
+		// 2) Remove any references to includes (to allow building a Sheet from the compiled node)
+		//
+		JsonNode includes = compiledNode.get("includes");
+		if (includes != null)
+			((ObjectNode) compiledNode).putArray("includes");
+
+		_masterSheet = compiledNode;
+		_allSheets.clear();
+
+		return this;
+
+	}
+
+	public void getAllPaths(JsonNode root, String prefix, List<String> result) {
+
+		Iterator<Entry<String, JsonNode>> fields = root.fields();
+		while (fields.hasNext()) {
+			Entry<String, JsonNode> entry = fields.next();
+			result.add(prefix + "." + entry.getKey());
+			JsonNode value = entry.getValue();
+			if (value.isObject()) {
+				getAllPaths(value, prefix + "." + entry.getKey(), result);
+			} else if (value.isArray()) {
+
+			} else {
+
+			}
+		}
+
+	}
+	// ******************************************************************************************************************
+	// Included Dependencies Management
+	// ******************************************************************************************************************
+
+	public JsonCascadedSheet addLibraries(String... libs) {
+		for (String lib : libs) {
+			File dir = new File(lib);
+			if (dir.isDirectory()) {
+				_allLibrariesDir.add(dir);
+			}
+		}
+		return this;
+	}
+
+	/** Get the list of available included file locations for this sheet or the one of its child sheet. */
+	public List<File> getLibraries() {
 		if (_allLibrariesDir != null) {
 			return _allLibrariesDir;
 		}
 		return childSheet.getLibraries();
 	}
 
-	public Stream<File> getAllIncludedFiles() {
+	public Stream<JsonCascadedSheet> getAllIncludedSheets() {
 		return Stream.concat(
-				_allSheets.stream().flatMap(JsonCascadedSheet::getAllIncludedFiles),
-				Stream.of(getFile()));
+				_allSheets.stream().flatMap(JsonCascadedSheet::getAllIncludedSheets),
+				Stream.of(this));
 	}
 
-	/** Returns a stream of the Included files in this sheet. */
+	/** Get the list of included files in this sheet. */
+	public Stream<JsonCascadedSheet> getIncludedSheets() {
+		return _allSheets.stream();
+	}
+
+	/** Get the list of all included files, with transitive dependencies */
+	public Stream<File> getAllIncludedFiles() {
+		return getAllIncludedSheets().map(JsonCascadedSheet::getFile).filter(Objects::nonNull);
+	}
+
+	/** Get the list of included files in this sheet. */
 	public Stream<File> getIncludedFiles() {
-		return _allSheetFiles.stream();
+		return getIncludedSheets().map(JsonCascadedSheet::getFile).filter(Objects::nonNull);
 	}
 
-	/** Seach for the file referenced by a path in library folders (as in an include section). */
+	/** Seach in library location for the file included from a path (as in an include section). */
 	protected File includeLookUp(String path) {
 		File result = new File(path);
 
@@ -149,35 +286,108 @@ public class JsonCascadedSheet {
 		}
 
 		if (result != null) {
-			_logger.debug("Json Cascaded Sheet found at {}", result.getAbsolutePath());
+			// _logger.debug("Json Cascaded Sheet found at {}", result.getAbsolutePath());
 		} else {
 			_logger.error("Json Cascaded Sheet not found {}", path);
 		}
 		return result;
 	}
 
-	//
 	// ******************************************************************************************************************
-	//
+	// Loading the Cascaded Json Sheet from different source
+	// ******************************************************************************************************************
 
-	public boolean load(String pathname) {
-		File srcFile = includeLookUp(pathname);
-		boolean result = srcFile != null;
-		if (srcFile != null) {
-			_masterSheet = JsonUtils.getJsonNodeFromFile(srcFile.getAbsolutePath());
-			if (_masterSheet != null) {
-				_masterFile = srcFile;
-				result = resolveIncludes();
+	public JsonCascadedSheet load(String jsonText) {
+		boolean result = (jsonText != null) && !jsonText.isEmpty();
+		if (result) {
+			JsonNode root = JsonUtils.getJsonNodeFromText(jsonText);
+			if (root != null) {
+				result = load(root) != null;
+			} else {
+				_logger.error("Unable to parse JSON from {}", jsonText);
+				result = false;
+			}
+		}
+		return result ? this : null;
+	}
+
+	public JsonCascadedSheet load(JsonNode root) {
+		boolean result = (root != null) && root.isContainerNode();
+		if (result) {
+			_masterSheet = root;
+			result = resolveIncludes();
+		}
+
+		if (!result) {
+			clear();
+		}
+
+		return result ? this : null;
+	}
+
+	public JsonCascadedSheet load(File srcFile) {
+		boolean result = (srcFile != null) && (srcFile.canRead());
+		if (result) {
+			_masterFile = srcFile;
+			JsonNode root = JsonUtils.getJsonNodeFromFile(srcFile.getAbsolutePath());
+			if (root != null) {
+				result = load(root) != null;
 				if (!result) {
-					throw new IllegalArgumentException("Unable to resolve includes from " + srcFile.getPath());
+					_masterFile = null;
+					throw new IllegalArgumentException(
+							"Unable to load a Cascaded JSON Sheet {} from parsed JSON " + srcFile.getPath());
 				}
 			} else {
 				throw new IllegalArgumentException("Unable to parse JSON from " + srcFile.getPath());
 			}
 		} else {
-			throw new IllegalArgumentException("Unable to find JSON file at " + pathname);
+			throw new IllegalArgumentException("Unable to find JSON file at " + srcFile);
 		}
-		return result;
+		return result ? this : null;
+	}
+
+	/** Load an included file referenced by a path to be resolved in the list of Libraries.*/
+	public JsonCascadedSheet load(Path pathname) {
+		File srcFile = includeLookUp(pathname.toString());
+		if (srcFile != null) {
+			return load(srcFile);
+		}
+		return null;
+	}
+
+	public JsonCascadedSheet include(JsonNode rootSheet) {
+		JsonCascadedSheet incSheet = JsonCascadedSheet
+				.build()
+				.includedFrom(this)
+				.load(rootSheet);
+
+		if (incSheet.isValid()) {
+			_allSheets.add(incSheet);
+			return this;
+		}
+		return null;
+	}
+
+	public JsonCascadedSheet include(File incFile) {
+		JsonCascadedSheet includedSheet = JsonCascadedSheet
+				.build()
+				.includedFrom(this)
+				.load(incFile);
+
+		if (includedSheet.isValid()) {
+			include(includedSheet);
+			_logger.debug("Including sheet from {}", incFile.getName());
+		}
+
+		return this;
+	}
+
+	public JsonCascadedSheet include(JsonCascadedSheet sheet) {
+		JsonCascadedSheet result = sheet;
+		if ((sheet != null) && sheet.isValid()) {
+			_allSheets.add(sheet);
+		}
+		return this;
 	}
 
 	//
@@ -194,7 +404,6 @@ public class JsonCascadedSheet {
 		}
 
 		_allSheets.clear();
-		_allSheetFiles.clear();
 
 		JsonNode includes = JsonUtils.getJsonByPath(_masterSheet, ".includes");
 		if (includes != null) {
@@ -223,22 +432,15 @@ public class JsonCascadedSheet {
 						continue;
 					}
 
-					_logger.debug("Included file found at {}", incFile.getPath());
+					JsonCascadedSheet incSheet = include(incFile);
 
-					JsonCascadedSheet incSheet = new JsonCascadedSheet(incFile.getPath(), this);
-
-					if (incSheet.isValid()) {
-						_allSheets.add(incSheet);
-						_allSheetFiles.add(incFile);
-					} else {
+					if (incSheet == null) {
 						result = false;
 						_logger.error("Unable to read JSON sheet from file {}", incFile.getAbsolutePath());
 					}
 
 				}
 			}
-		} else {
-			_logger.debug("No included sheets found in {}", _masterFile.getPath());
 		}
 
 		return result;
@@ -379,16 +581,69 @@ public class JsonCascadedSheet {
 	// root context is provided, the default one is the root node of the Sheet.
 	// ******************************************************************************************************************
 
+	public JsonCascadedSheet resolve() {
+		resolve(_masterSheet);
+		return this;
+	}
+
+	public Object resolve(Object value) {
+		return resolve(_masterSheet, value);
+	}
+
 	/** Resolve any object (a string, entries of an array, ...) from the given root context*/
-	public Object resolve(JsonNode from, Object value) {
+	public Object resolve(JsonNode root, Object value) {
 		Object result = value;
-		if (value instanceof String) {
-			result = resolve(from, (String) value);
+		if (value instanceof ContainerNode) {
+			JsonNode node = ((JsonNode) value).deepCopy();
+			Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+
+			while (fields.hasNext()) {
+				Map.Entry<String, JsonNode> entry = fields.next();
+
+				// The value of the field is a String
+				if (entry.getValue().isTextual()) {
+					String definition = entry.getValue().asText();
+					String resolved = resolve(node, definition);
+					((ObjectNode) node).put(entry.getKey(), resolved);
+				}
+
+				// The value of the field is an Array
+				else if (entry.getValue().isArray()) {
+					JsonNode arrayNode = entry.getValue();
+
+					List<JsonNode> nodes = new ArrayList<>();
+					int nb = entry.getValue().size();
+					for (int i = 0; i < nb; i++) {
+						JsonNode item = entry.getValue().get(i);
+						// The array item is a String
+						if (item.isTextual()) {
+							nodes.add(new TextNode(resolve(arrayNode, item.asText())));
+						}
+						// The array item is something else
+						else {
+							resolve(arrayNode, item);
+							nodes.add(item);
+						}
+					}
+
+					((ObjectNode) node).putArray(entry.getKey()).addAll(nodes);
+
+				}
+
+				// Other type of field value
+				else {
+					resolve(node, entry.getValue());
+				}
+			}
+
+			result = node;
+		} else if (value instanceof String) {
+			result = resolve(root, (String) value);
 		} else if (value instanceof Object[]) {
 			result = new Object[((Object[]) value).length];
 			for (int i = 0; i < ((Object[]) value).length; i++) {
 				Object obj = ((Object[]) value)[i];
-				((Object[]) result)[i] = resolve(from, obj);
+				((Object[]) result)[i] = resolve(root, obj);
 			}
 		}
 		return result;
@@ -398,19 +653,23 @@ public class JsonCascadedSheet {
 	public String resolve(JsonNode from, String value) {
 		String result = value;
 		if (result != null) {
-			if (from == null) {
-				result = StringUtils.resolve(value, "${", "}", this::getAsText);
-			} else {
-				result = StringUtils.resolve(value, "${", "}", name -> {
-					JsonNode valueNode = JsonUtils.getJsonByPath(from, name);
-					if (valueNode != null) {
-						Object valueObj = getObjectFromNode(valueNode);
-						if (valueObj != null)
-							return valueObj.toString();
-					}
-					return null;
-				});
-			}
+			
+
+			result = StringUtils.resolve(value, "${", "}", name -> {
+
+				JsonNode root = null;
+				if (name.startsWith(".")) {
+					root = null;
+				} else {
+					root = from;
+				}
+
+				Object valueNode = getFromNode(root, name);
+				if (valueNode != null)
+					return valueNode.toString();
+				return null;
+			});
+
 		}
 		return result;
 	}
@@ -448,14 +707,18 @@ public class JsonCascadedSheet {
 		return result;
 	}
 
-	//
 	// ******************************************************************************************************************
+	// A Definition of a node is it's value before any references it may include are resolved.
 	//
+	// For example "name": "${.other_field}" as a definition of '${.other_field}'
+	// ******************************************************************************************************************
 
+	/** Get the definition (unresolved) value of a path in the context of the root node of this Sheet. */
 	public Object getDefinition(String path) {
 		return getDefinition(null, path);
 	}
 
+	/** Get the definition (unresolved) value of a path in the context of the given root JsonNode */
 	public Object getDefinition(JsonNode root, String path) {
 
 		if (!isValid()) {
@@ -504,4 +767,7 @@ public class JsonCascadedSheet {
 				JsonUtils.getJsonByPath(_masterSheet, path) != null ? Stream.of(this) : Stream.empty());
 	}
 
+	public String toPrettyString() {
+		return _masterSheet.toPrettyString();
+	}
 }
