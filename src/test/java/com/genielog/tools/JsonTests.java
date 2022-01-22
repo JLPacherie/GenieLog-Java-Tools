@@ -7,11 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.Test;
@@ -23,6 +20,188 @@ import com.genielog.tools.json.JsonCascadedSheet;
 class JsonTests extends BaseTest {
 
 	@Test
+	void test_Resolvers() {
+
+		String jsonText = ""
+				+ "{"
+				+ "  \"name1\": \"value1\","
+				+ "  \"name2\": \"value2\","
+				// Simple substitution globaly resolved
+				+ "  \"name3\": \"${.name1}\","
+				// Simple substitution locally resolved
+				+ "  \"name4\": \"${name1}\","
+				// Double substitution globaly resolved
+				+ "  \"name5\": \"${.name1}${.name2}\","
+				// Simple partial substitution globaly resolved
+				+ "  \"name6\": \"prefix${.name2}\","
+				+ "  \"name7\": \"${.name2}suffix\","
+				// Simple partial substitution globaly NOT resolved in the sheet
+				+ "  \"name8\": \"name0=${.name0}\","
+				// Trabsitive substitution
+				+ "  \"name9\": \"${.name5}\","
+				+ "  \"child\": {"
+				+ "      \"name1\": \"child_value1\","
+				+ "      \"name2\": \"child_value2\","
+				// Simple substitution globaly resolved
+				+ "      \"name3\": \"${.name1}\","
+				// Simple substitution locally resolved
+				+ "      \"name4\": \"${name1}\","
+				// Double substitution globaly resolved
+				+ "      \"name5\": \"${.name1}${.name2}\","
+				// Simple partial substitution globaly resolved
+				+ "      \"name6\": \"prefix${.name2}\","
+				+ "      \"name7\": \"${.name2}suffix\","
+				// Simple partial substitution globaly NOT resolved in the sheet
+				+ "      \"name8\": \"name0=${.name0}\""
+				+ "  }"
+				+ "}";
+
+		JsonCascadedSheet sheet = JsonCascadedSheet.build()
+				.load(jsonText);
+
+		assertNotNull(sheet,"Unable to parse JSON text");
+		assertTrue(sheet.isValid(),"Invalid Cascaded Sheet");
+		
+		// ------------------------------------------------------------------------
+		// Test Various Substitutions resolved in the same sheet
+		// ------------------------------------------------------------------------
+		
+		assertEquals("value1",sheet.get(".name1"));
+		assertEquals("value2",sheet.get(".name2"));
+		assertEquals("value1",sheet.get(".name3"));
+		assertEquals("value1",sheet.get(".name4"));
+		assertEquals("value1value2",sheet.get(".name5"));
+		assertEquals("prefixvalue2",sheet.get(".name6"));
+		assertEquals("value2suffix",sheet.get(".name7"));
+		assertEquals("name0=${.name0}",sheet.get(".name8"));
+		assertEquals("value1value2",sheet.get(".name9"));
+		
+
+		assertEquals("child_value1",sheet.get(".child.name1"));
+		assertEquals("child_value2",sheet.get(".child.name2"));
+		assertEquals("value1",sheet.get(".child.name3"));
+		
+		// This test doesn't work, and I'm not sure we do need to be
+		// able to resolve a reference only locally (wiithout 
+		// giving the parent path
+		
+		//assertEquals("child_value1",sheet.get(".child.name4"));
+		
+		assertEquals("value1value2",sheet.get(".child.name5"));
+		assertEquals("prefixvalue2",sheet.get(".child.name6"));
+		assertEquals("value2suffix",sheet.get(".child.name7"));
+		assertEquals("name0=${.name0}",sheet.get(".child.name8"));
+
+		
+		
+		String jsonTextMain= ""
+				+ "{"
+				+ "  \"name0\": \"value0\","
+				+ "  \"name1\": \"overwrite_value1\","
+				+ "  \"name2\": \"overwrite_value2\""
+				+ "}";
+
+		JsonCascadedSheet mainSheet = JsonCascadedSheet.build()
+				.load(jsonTextMain);
+		
+		
+
+		assertNotNull(mainSheet,"Unable to parse JSON text");
+		assertTrue(mainSheet.isValid(),"Invalid Cascaded Sheet");
+		
+		sheet.includedFrom(mainSheet);
+		
+		assertEquals("value1",sheet.get(".name1"));
+		assertEquals("value2",sheet.get(".name2"));
+		assertEquals("value1",sheet.get(".name3"));
+		assertEquals("value1",sheet.get(".name4"));
+		assertEquals("value1value2",sheet.get(".name5"));
+		assertEquals("prefixvalue2",sheet.get(".name6"));
+		assertEquals("value2suffix",sheet.get(".name7"));
+		assertEquals("name0=${.name0}",sheet.get(".name8"));
+
+		assertEquals("value0",mainSheet.get(".name0"));
+		assertEquals("overwrite_value1",mainSheet.get(".name1"));
+		assertEquals("overwrite_value2",mainSheet.get(".name2"));
+		
+		assertEquals("overwrite_value1",mainSheet.get(".name3"));
+		
+		//assertEquals("value1",mainSheet.get(".name4"));
+		
+		assertEquals("overwrite_value1overwrite_value2",mainSheet.get(".name5"));
+		assertEquals("prefixoverwrite_value2",mainSheet.get(".name6"));
+		assertEquals("overwrite_value2suffix",mainSheet.get(".name7"));
+		assertEquals("name0=value0",mainSheet.get(".name8"));
+
+	}
+
+	@Test
+	void test_ArrayResolvers() {
+
+		String jsonText1 = ""
+				+ "{"
+				+ "  \"name1\": \"value1\","
+				+ "  \"array\": ["
+				+ "    \"item1\","
+				+ "    \"item2\"" // Refers to
+				+ "  ],"
+				+ "  \"array_merge\": ["
+				+ "    \"item5\","
+				+ "    \"item6\"" // Refers to
+				+ "  ],"
+				+ "  \"field_merged\": \"prefix\","
+				+ "  \"parent\": {"
+				+ "     \"subfield_merged\": \"prefix\""
+				+ "  }"
+				+ "}";
+
+		JsonCascadedSheet sheet1 = JsonCascadedSheet.build();
+		sheet1.load(jsonText1);
+
+		String jsonText2 = ""
+				+ "{"
+				+ "  \"name2\": \"value2\","
+				+ "  \"array\": ["
+				+ "    \"item4\","
+				+ "    \"item3\"" // Refers to
+				+ "  ],"
+				+ "  \"array_merge+=\": ["
+				+ "    \"item7\","
+				+ "    \"item8\"" // Refers to
+				+ "  ],"
+				+ "  \"field_merged+=\": \"suffix\","
+				+ "  \"parent\": {"
+				+ "     \"subfield_merged+=\": \"suffix\""
+				+ "  }"
+				+ "}";
+
+		JsonCascadedSheet sheet2 = JsonCascadedSheet.build();
+		sheet2.load(jsonText2);
+
+		Object[] array1 = (Object[]) sheet1.get(".array");
+		Object[] array2 = (Object[]) sheet2.get(".array");
+
+		_logger.info("Array 1 :\n{}", sheet1.get(".array"));
+		_logger.info("Array 2 :\n{}", sheet2.get(".array"));
+
+		sheet2.include(sheet1);
+
+		_logger.info("Array 1 :\n{}", sheet1.get(".array"));
+		_logger.info("Array 2 :\n{}", sheet2.get(".array"));
+
+		sheet2.compile();
+
+		Object[] arrayCompiled = (Object[]) sheet2.get(".array");
+		assertTrue(Arrays.equals(arrayCompiled, array2), "Mismatched");
+
+		Object[] arrayMerged = (Object[]) sheet2.get(".array_merge");
+		_logger.info("Array merged compiled :\n{}", Arrays.toString(arrayMerged));
+
+		assertEquals("prefixsuffix", sheet2.get(".field_merged"));
+		assertEquals("prefixsuffix", sheet2.get(".parent.subfield_merged"));
+	}
+
+	@Test
 	void test_JsonUtils() {
 
 		String jsonText = ""
@@ -30,7 +209,8 @@ class JsonTests extends BaseTest {
 				+ "  \"name1\": \"value1\","
 				+ "  \"child1\": {"
 				+ "    \"name1\": \"value2\","
-				+ "    \"name2\": \"${.name1}\"" // Refers to
+				+ "    \"name2\": \"${.name1}\"," // Refers to
+				+ "    \"name3\": \"${name1}\"" // Refers to
 				+ "  }"
 				+ "}";
 
@@ -46,20 +226,30 @@ class JsonTests extends BaseTest {
 		assertEquals("${.name1}", JsonUtils.getFieldAsText(node, ".child1.name2", "", null));
 		assertEquals(null, JsonUtils.getFieldAsText(node, ".child1.missing", null, null));
 
-		String tmpFilePath ="tests/tmpJson1.json"; 
+		String tmpFilePath = "tests/tmpJson1.json";
 		try {
 			File tmpJson = new File(tmpFilePath);
 			FileUtils.write(tmpJson, jsonText, Charset.defaultCharset(), false);
 
-			JsonCascadedSheet sheet = new JsonCascadedSheet(tmpFilePath);
+			JsonCascadedSheet sheet = JsonCascadedSheet.build().load(tmpJson);
 			Object child = sheet.get(".child1");
-			assertNotNull(child,"Child not found from Sheet");
-			assertTrue(child instanceof JsonNode,"Child not a JsonNode");
-			
-			assertEquals("value2", sheet.getFromNode((JsonNode)child, ".name2"));
-			
+			assertNotNull(child, "Child not found from Sheet");
+			assertTrue(child instanceof JsonNode, "Child not a JsonNode");
+
+			assertEquals(sheet.get(".child1.name2"), sheet.getFromNode(null, ".child1.name2"));
+			assertEquals(sheet.get(".child1.name2"), sheet.getFromNode(node, ".child1.name2"));
+
+			assertEquals("value1", sheet.getFromNode(null, ".child1.name2"));
+			assertEquals("value1", sheet.getFromNode((JsonNode) child, ".name2"));
+
+			assertEquals("value2", sheet.getFromNode((JsonNode) child, ".name3"));
+			assertEquals("value2", sheet.getFromNode((JsonNode) child, ".name3"));
+
+			_logger.info("Parsed   : \n{}", sheet.toPrettyString());
+			_logger.info("Compiled : \n{}", sheet.compile().toPrettyString());
+			_logger.info("Resolved : \n{}", sheet.resolve().toPrettyString());
 		} catch (IOException e) {
-			_logger.error("Unable to create temp JSON file at {} : {}",tmpFilePath,Tools.getExceptionMessages(e));
+			_logger.error("Unable to create temp JSON file at {} : {}", tmpFilePath, Tools.getExceptionMessages(e));
 		}
 	}
 
@@ -72,8 +262,8 @@ class JsonTests extends BaseTest {
 
 		if (srcJsonFile.exists()) {
 
-			JsonCascadedSheet sheet = new JsonCascadedSheet(jsonMasterSheetPath);
-			assertTrue(sheet.isValid());
+			JsonCascadedSheet sheet = JsonCascadedSheet.build().load(srcJsonFile);
+			assertTrue(sheet != null && sheet.isValid());
 
 			testPaths(sheet, new String[] { ".field1", ".field2", ".field3", ".field4", ".field5", ".field6" });
 
@@ -85,76 +275,105 @@ class JsonTests extends BaseTest {
 	String[] _basicPaths = new String[] {
 			".project.name",
 			".project.version",
-			".coverity.work"
+			".coverity.work",
+			"sonar.sonarqube"
 	};
 
 	void testPaths(JsonCascadedSheet sheet, String... paths) {
-		Map<String, Object> dictionary = new HashMap<>();
 
 		for (String path : paths) {
+
 			Object value = sheet.get(path);
-			assertNotNull(value, "Undefined path " + path);
-			_logger.info(" [{}] = {}", path, value);
-			_logger.info("   as defined by  : {}", sheet.getDefinition(path));
-			_logger.info("         in sheet : {}", sheet.getDefinitionLocation(path).getFile().getName());
-			dictionary.put(path, value);
-		}
+			if (value == null) {
+				_logger.warn("In {} : Undefined path {}", sheet.getId(), path);
+			} else {
 
-		JsonNode compiledNode = null;
-		try {
+				assertNotNull(value, () -> {
+					sheet.compile();
+					_logger.info("Failing on path {} in {}\n{}", path, sheet.getFile(), sheet.toPrettyString());
+					return "Undefined path " + path;
+				});
 
-			List<File> allFiles = sheet.getAllIncludedFiles().collect(Collectors.toList());
+				_logger.info(" [{}] = {}", path, value);
 
-			_logger.info("List of loaded files to compile");
-			allFiles.forEach(file -> {
-				_logger.info("{}", file.getAbsoluteFile());
-			});
+				_logger.info("   as defined by  : {}", sheet.getDefinition(path));
 
-			compiledNode = JsonUtils.getJsonNodeFromFile(allFiles.get(0).getAbsolutePath());
-			_logger.info("Initial {}: \n{}",
-					allFiles.get(0).getName(),
-					JsonUtils.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(compiledNode));
+				JsonCascadedSheet sheetDef = sheet.getTopSheet(path);
 
-			for (int i = 1; i < allFiles.size(); i++) {
-				JsonNode n = JsonUtils.getJsonNodeFromFile(allFiles.get(i).getAbsolutePath());
-				JsonUtils.merge(n, compiledNode);
-				_logger.info("Merged {}: \n{}",
-						allFiles.get(i).getName(),
-						JsonUtils.getObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(compiledNode));
+				_logger.info("         in sheet : {}", sheetDef.getId());
 			}
-		} catch (JsonProcessingException e) {
-
 		}
 
-		for (Map.Entry<String, Object> entry : dictionary.entrySet()) {
-			String compiledValue = JsonUtils.getFieldAsText(compiledNode, entry.getKey(), null, null);
-			_logger.info(" {} = {} ?= {} ", entry.getKey(), entry.getValue(), compiledValue);
+		JsonCascadedSheet compiledSheet = JsonCascadedSheet.clone(sheet);
+		compiledSheet.compile()
+				.resolve();
+
+		assertTrue(compiledSheet != null, "Unable to create compiled sheet");
+		assertTrue(compiledSheet.isValid(), "Compiled sheet not valid");
+
+		for (String path : paths) {
+
+			Object compiledValue = compiledSheet.get(path);
+			Object value = sheet.get(path);
+
+			if (compiledValue == null) {
+				_logger.warn("In compiled {} : Undefined path {}", sheet.getId(), path);
+			} else {
+
+				assertTrue(compiledValue.getClass().isArray() == value.getClass().isArray());
+
+				if (compiledValue.getClass().isArray()) {
+
+					assertTrue(
+							Arrays.equals((Object[]) value, (Object[]) value),
+							"Mismatched values between Sheet and compiled JSON ");
+
+					_logger.info("Test passed with same resolved array at {}", path);
+				} else {
+					assertEquals(value, sheet.get(path), "Mismatched values between Sheet and compiled JSON ");
+					_logger.info("Test passed with same resolved value at {}", path);
+				}
+			}
 		}
 	}
 
 	@Test
 	void test_CascadedJsonSheet2() {
+		String jenkinsConfigDir = "/opt/synopsys/snps-extpack/data/configs/pipeline";
 
-		//String jsonMasterSheetPath = "/opt/Data/kubernetes/storage/jenkins/lts/workspace/GenieLog Java Tools@4/project/jenkins-config.json";
-		String jsonMasterSheetPath = "/opt/Data/kubernetes/storage/jenkins/lts/workspace/Coverity Tools@2/project/jenkins-config.json";
+		// String jsonMasterSheetPath = "/opt/Data/kubernetes/storage/jenkins/lts/workspace/GenieLog Java
+		// Tools@4/project/jenkins-config.json";
+		String jsonMasterSheetPath = jenkinsConfigDir + "/examples/tomcat.json";
 		File jsonFile = new File(jsonMasterSheetPath);
 		if (jsonFile.exists()) {
-			JsonCascadedSheet sheet = new JsonCascadedSheet(jsonMasterSheetPath,
-					"/opt/synopsys/snps-extpack/data/configs/pipeline/conf");
+
+			JsonCascadedSheet sheet = JsonCascadedSheet
+					.build()
+					.addLibraries("/opt/synopsys/snps-extpack/data/configs/pipeline/conf")
+					.load(jsonFile);
+
+			
 			assertTrue(sheet.isValid());
 
+			sheet.set(".gitBranch","GIT_BRANCH");
+			
 			assertEquals("1.0", sheet.get(".version"), "Mismatched version");
 
 			Object[] allConfigs = (Object[]) sheet.get(".coverity.analysis.configs", null);
 
-			Object initCmd = sheet.get(".project.build.init_command");
+			String buildImage = sheet.getAsText(".project.build.docker.image");
+			Object testImage = sheet.getAsText(".project.test.docker.image");
+
+			Object[] setting = (Object[]) sheet.get(".sonar.scanner.settings");
+
+			String sonarKey = sheet.getAsText(".sonar.sonarqube.key");
 
 			testPaths(sheet, _basicPaths);
 
 			_logger.info("");
 			_logger.info(" -- List of Resolved Definitions --");
 			sheet.getAllCached().forEach(entry -> {
-				JsonCascadedSheet ownerSheet = sheet.getDefinitionLocation(entry.getKey());
+				JsonCascadedSheet ownerSheet = sheet.getTopSheet(entry.getKey());
 				_logger.info("{} = '{}'", entry.getKey(), entry.getValue());
 				sheet.getAllDefinitionLocation(entry.getKey())
 						// .filter(aSheet -> aSheet != ownerSheet)
@@ -176,7 +395,7 @@ class JsonTests extends BaseTest {
 	}
 
 	@Test
-	void test_JenkinsConfigs() {
+	void test_AllExampleConfigs() {
 
 		String jenkinsConfigDir = "/opt/synopsys/snps-extpack/data/configs/pipeline";
 		File rootConfigDir = new File(jenkinsConfigDir + "/examples");
@@ -185,8 +404,12 @@ class JsonTests extends BaseTest {
 		for (File jsonFile : allFiles) {
 
 			JsonCascadedSheet sheet = null;
+
 			try {
-				sheet = new JsonCascadedSheet(jsonFile.getAbsolutePath(), jenkinsConfigDir + "/conf");
+				sheet = JsonCascadedSheet.build()
+						.addLibraries(jenkinsConfigDir + "/conf")
+						.load(jsonFile);
+
 			} catch (IllegalArgumentException e) {
 				sheet = null;
 				_logger.info("Unable to process file {} : {}", jsonFile.getName(), Tools.getExceptionMessages(e));

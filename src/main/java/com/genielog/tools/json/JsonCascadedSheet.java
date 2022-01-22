@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.javatuples.Pair;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -80,6 +81,9 @@ public class JsonCascadedSheet {
 
 	public JsonCascadedSheet includedFrom(JsonCascadedSheet includedFrom) {
 		childSheet = includedFrom;
+		includedFrom._allSheets.add(this);
+		includedFrom._allLibrariesDir.addAll(_allLibrariesDir);
+		// TODO What to do with cached entries ??
 		return this;
 	}
 
@@ -384,8 +388,10 @@ public class JsonCascadedSheet {
 
 	public JsonCascadedSheet include(JsonCascadedSheet sheet) {
 		JsonCascadedSheet result = sheet;
+		sheet.childSheet = this;
 		if ((sheet != null) && sheet.isValid()) {
 			_allSheets.add(sheet);
+			_allLibrariesDir.addAll(sheet._allLibrariesDir);
 		}
 		return this;
 	}
@@ -728,7 +734,7 @@ public class JsonCascadedSheet {
 		Object result = null;
 
 		if (root == null) {
-			JsonCascadedSheet ownerSheet = getDefinitionLocation(path);
+			JsonCascadedSheet ownerSheet = getTopSheet(path);
 			if (ownerSheet != null) {
 				root = ownerSheet._masterSheet;
 			}
@@ -744,16 +750,24 @@ public class JsonCascadedSheet {
 		return null;
 	}
 
+	/** Returns the top level Sheet and the node where is defined the given path */
+	public Pair<JsonCascadedSheet,JsonNode> getDefLocation(JsonNode from, String path) {
+		Pair<JsonCascadedSheet,JsonNode> result = null;
+		
+		return result;
+	}
+	
+	
 	/** Returns the first Sheet defining the given path.
 	 *  <p>The lookup starts from from this one, then each included Json sheet starting from
 	 *  the last included one up to the first.
 	 */
-	public JsonCascadedSheet getDefinitionLocation(String path) {
+	public JsonCascadedSheet getTopSheet(String path) {
 		JsonCascadedSheet result = JsonUtils.getJsonByPath(_masterSheet, path) != null ? this : null;
 
 		int iSheet = _allSheets.size() - 1;
 		while ((result == null) && (iSheet >= 0)) {
-			result = _allSheets.get(iSheet).getDefinitionLocation(path);
+			result = _allSheets.get(iSheet).getTopSheet(path);
 			iSheet--;
 		}
 
