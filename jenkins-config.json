@@ -7,30 +7,15 @@
 // ****************************************************************************
 {
 
-	// Version number of the configuration file
-	"version": "1.0",
-
 	"includes": [
 		// --------------------------------------------------------------------------
-		"project.json",        // Base definitions for a Generic Project
-		"project-maven.json",  // Additional definitions for project using Maven
-		"project-gitlab.json", // Overwrittes for using GitLab
+		"project.json",     		      // Base definitions for Coverity SAST Analysis
+		"builds/project-maven.json",	// Project overwrittings for Make build tool chain
+		"scm/project-github.json",    // Project overwrittings for GitHub checked out code
 		// --------------------------------------------------------------------------
-		"cov-java.json",    	// Additional Coverity definitions for Java/JS
-		"sonar-java.json"  		// Additional Coverity definitions for Java/JS
+		"platforms/platform-home.json", // Project overwrittings for using home platform
+		"ast-java.json"                 // Project overwrittings for Java Webapp AST config 
 	],
-
-	"sonar": {
-		"enabled": true
-	},
-	
-	"coverity": {
-		"enabled": true
-	},
-	
-	"blackduck": {
-		"enabled": true
-	},
 
 	// **************************************************************************
 	// Project Specific Build Configuration for this project
@@ -39,9 +24,6 @@
 		
 		// The name of the project
 		"name": "GenieLog Java Tools",
-
-		// The version name of the project
-		"version": "${.project.code.git.branch}",
 
 		"code": {
 			"git": {
@@ -58,11 +40,7 @@
 		// Configuration of the project build.
 		//
 		"build": {
-			
-			"enabled": true,
-			
-			// It's a pretty small project. no need for incremental
-			"incremental": false			
+		
 
 		},
 
